@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>EduTrack | Premium Student Analysis</title>
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+                rel="stylesheet">
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <!-- Custom CSS -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+        <div class="app-container">
+                <!-- Sidebar Navigation -->
+                <nav class="sidebar">
+                        <div class="logo">
+                                <i class="fa-solid fa-graduation-cap"></i> <span>EduTrack</span>
+                        </div>
+                        <ul class="nav-links">
+                                <li><a href="{{ url_for('index') }}" class="nav-item"><i class="fa-solid fa-home"></i>
+                                                Homepage</a></li>
+                                <li><a href="{{ url_for('dashboard') }}" class="nav-item"><i
+                                                        class="fa-solid fa-chart-pie"></i> Personal
+                                                Dashboard</a></li>
+
+                                <li><a href="{{ url_for('career') }}" class="nav-item"><i
+                                                        class="fa-solid fa-compass"></i> Career
+                                                Explorer</a></li>
+                                <li><a href="{{ url_for('roadmap') }}" class="nav-item"><i class="fa-solid fa-map"></i>
+                                                Roadmap
+                                                Builder</a></li>
+                                <li><a href="{{ url_for('market') }}" class="nav-item"><i class="fa-solid fa-globe"></i>
+                                                Booming skills with current trend</a></li>
+
+                                <li><a href="{{ url_for('mentors') }}" class="nav-item"><i
+                                                        class="fa-solid fa-users"></i> Mentor
+                                                Network</a></li>
+                                <li><a href="{{ url_for('stories') }}" class="nav-item"><i class="fa-solid fa-star"></i>
+                                                Success
+                                                Stories</a></li>
+                                <li><a href="{{ url_for('institution') }}" class="nav-item"><i
+                                                        class="fa-solid fa-university"></i>
+                                                Institution Portal</a></li>
+                                <li><a href="{{ url_for('support') }}" class="nav-item"><i
+                                                        class="fa-solid fa-headset"></i> Support
+                                                Center</a></li>
+                        </ul>
+                        <div class="user-info">
+                                <div class="avatar">S</div>
+                                <div class="details">
+                                        <span class="name">Student User</span>
+                                        <span class="role">Engineering</span>
+                                </div>
+                        </div>
+                </nav>
+
+                <!-- Main Content -->
+                <main class="main-content">
+                        {% block content %}{% endblock %}
+                </main>
+        </div>
+</body>
+
+</html>

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header animate-fade-in">
+    <h1 class="page-title">Welcome to EduTrack</h1>
+    <p style="color: var(--text-muted);">Empowering Engineering Excellence through Data-Driven Insights.</p>
+</div>
+
+<div class="dashboard-grid">
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.1s;">
+        <h3><i class="fa-solid fa-graduation-cap" style="color: var(--primary);"></i> Track Education</h3>
+        <p style="color: var(--text-muted); margin-top: 1rem; line-height: 1.6;">Maintain a comprehensive record of your
+            academic performance, GPA, and semester-wise progress.</p>
+        <a href="{{ url_for('profile') }}" class="btn btn-primary" style="margin-top: 1.5rem;">Update Profile</a>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.2s;">
+        <h3><i class="fa-solid fa-code" style="color: var(--secondary);"></i> Skill Mastery</h3>
+        <p style="color: var(--text-muted); margin-top: 1rem; line-height: 1.6;">Visualize your technical skill growth.
+            Validate your expertise and prepare for industry demands.</p>
+        <a href="{{ url_for('skills') }}" class="btn btn-primary" style="margin-top: 1.5rem;">Manage Skills</a>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.3s;">
+        <h3><i class="fa-solid fa-wand-magic-sparkles" style="color: #10b981;"></i> AI Insights</h3>
+        <p style="color: var(--text-muted); margin-top: 1rem; line-height: 1.6;">Upcoming Feature: Receive personalized
+            career path recommendations based on your unique profile.</p>
+        <span class="btn btn-primary"
+            style="margin-top: 1.5rem; opacity: 0.7; cursor: default; background: #334155; box-shadow: none;">Coming
+            Soon</span>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header animate-fade-in">
+    <h1 class="page-title">Institution Portal</h1>
+    <p style="color: var(--text-muted);">Admin & Faculty access for University Management.</p>
+</div>
+
+<div class="dashboard-grid">
+    <div class="glass-card animate-fade-in">
+        <h3><i class="fa-solid fa-users"></i> Student Management</h3>
+        <p style="margin: 1rem 0; color: var(--text-muted);">View enrollments, approve profiles, and manage records.</p>
+        <button class="btn btn-primary">Access Dashboard</button>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.1s;">
+        <h3><i class="fa-solid fa-bullhorn"></i> Announcements</h3>
+        <p style="margin: 1rem 0; color: var(--text-muted);">Broadcast news and updates to all students.</p>
+        <button class="btn btn-primary">Create Post</button>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.2s;">
+        <h3><i class="fa-solid fa-chart-line"></i> Analytics</h3>
+        <p style="margin: 1rem 0; color: var(--text-muted);">Track placement stats and academic performance trends.</p>
+        <button class="btn btn-primary">View Reports</button>
+    </div>
+</div>
+{% endblock %}

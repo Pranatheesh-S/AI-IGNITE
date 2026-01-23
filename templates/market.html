@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header animate-fade-in">
+    <h1 class="page-title">Booming skills with current trend</h1>
+    <p style="color: var(--text-muted);">Stay ahead with real-time industry trends and insights.</p>
+</div>
+
+<div class="dashboard-grid">
+    <div class="glass-card animate-fade-in">
+        <h3>Trending Skills</h3>
+        <ul style="list-style: none; margin-top: 1rem;">
+            <li
+                style="padding: 0.8rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+                <span>Generative AI</span>
+                <span style="color: #10b981;">+145%</span>
+            </li>
+            <li
+                style="padding: 0.8rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+                <span>Cloud Security</span>
+                <span style="color: #10b981;">+80%</span>
+            </li>
+            <li
+                style="padding: 0.8rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between;">
+                <span>Rust Programming</span>
+                <span style="color: #10b981;">+65%</span>
+            </li>
+        </ul>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.1s;">
+        <h3>Salary Insights</h3>
+        <div style="margin-top: 2rem; text-align: center;">
+            <div style="font-size: 2.5rem; font-weight: 700;">$95,000</div>
+            <div style="color: var(--text-muted);">Median Entry-Level Salary</div>
+            <div style="margin-top: 1rem; color: #10b981; font-size: 0.9rem;">+5% vs last year</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

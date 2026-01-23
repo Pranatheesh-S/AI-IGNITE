@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header animate-fade-in">
+    <h1 class="page-title">Student Dashboard</h1>
+</div>
+
+<div class="dashboard-grid">
+    <div class="glass-card animate-fade-in">
+        <div class="stat-label">Current CGPA</div>
+        <div class="stat-value">9.98</div>
+        <div style="color: #10b981; font-size: 0.9rem;"><i class="fa-solid fa-arrow-trend-up"></i> Top 5%</div>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.1s;">
+        <div class="stat-label">Skills Verified</div>
+        <div class="stat-value" style="display: flex; gap: 1rem; font-size: 2rem;">
+            <i class="fa-brands fa-python" title="Python" style="color: #FFD43B;"></i>
+            <i class="fa-brands fa-react" title="React" style="color: #61DAFB;"></i>
+            <i class="fa-brands fa-js" title="JavaScript" style="color: #F7DF1E;"></i>
+            <i class="fa-brands fa-docker" title="Docker" style="color: #2496ED;"></i>
+            <i class="fa-brands fa-aws" title="AWS" style="color: #FF9900;"></i>
+        </div>
+        <div style="color: var(--secondary); font-size: 0.9rem; margin-top: 0.5rem;">+2 new badges this month</div>
+    </div>
+
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.2s;">
+        <div class="stat-label">Semesters Completed</div>
+        <div class="stat-value">5</div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-top: 2rem;">
+    <!-- Learning Curve Chart -->
+    <div class="glass-card animate-fade-in" style="animation-delay: 0.3s;">
+        <h2><i class="fa-solid fa-chart-bar"></i> Learning Curve Analysis</h2>
+        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+            <select id="roleSelect"
+                style="max-width: 200px; padding: 0.5rem; background: rgba(15,23,42,0.5); color: white; border: 1px solid var(--glass-border); border-radius: 8px;">
+                <option value="all">All Industries</option>
+                <option value="sde">Software Development Engineer</option>
+                <option value="fsd">Full Stack Developer</option>
+                <option value="ai">AI/ML Engineer</option>
+            </select>
+        </div>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="learningCurveChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Role Suitability Radial Chart -->
+    <div class="glass-card animate-fade-in"
+        style="animation-delay: 0.35s; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <h2 style="width: 100%; text-align: left; margin-bottom: 1rem;"><i class="fa-solid fa-bullseye"></i> Role
+            Suitability</h2>
+        <div style="position: relative; height: 260px; width: 260px;">
+            <canvas id="roleSuitabilityChart"></canvas>
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Best Fit</div>
+                <div style="font-size: 1.5rem; font-weight: 700; color: #fff;">SDE</div>
+                <div style="font-size: 0.9rem; color: #3b82f6;">87% Match</div>
+            </div>
+        </div>
+        <div style="width: 100%; margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #3b82f6;"><i class="fa-solid fa-circle" style="font-size: 0.6rem;"></i> SDE</span>
+                <span>87%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #10b981;"><i class="fa-solid fa-circle" style="font-size: 0.6rem;"></i> Full
+                    Stack</span>
+                <span>65%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem;">
+                <span style="color: #ec4899;"><i class="fa-solid fa-circle" style="font-size: 0.6rem;"></i> AI/ML</span>
+                <span>45%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bounty Tasks Section -->
+<div style="margin-top: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2><i class="fa-solid fa-gift" style="color: #f59e0b;"></i> Daily Bounties</h2>
+        <span style="color: var(--text-muted); font-size: 0.9rem;">Earn XP by solving daily challenges</span>
+    </div>
+
+    <div class="animate-fade-in"
+        style="display: flex; gap: 1.5rem; overflow-x: auto; padding: 1rem 0.5rem 1.5rem 0.5rem; scrollbar-width: thin; scrollbar-color: var(--glass-border) transparent;">
+
+        <!-- Bounty Card 1 -->
+        <div class="glass-card"
+            style="min-width: 320px; margin-bottom: 0; position: relative; overflow: hidden; border: 1px solid rgba(245, 158, 11, 0.3);">
+            <div
+                style="position: absolute; top: 0; right: 0; background: #f59e0b; color: #0f172a; font-weight: 700; padding: 0.2rem 0.8rem; border-bottom-left-radius: 12px; font-size: 0.8rem;">
+                +50 XP
+            </div>
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;"><i class="fa-brands fa-python"></i> Python Challenge
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Fix the logic error in this
+                binary search implementation.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #ef4444; font-size: 0.8rem;"><i class="fa-regular fa-clock"></i> 2h remaining</span>
+                <button class="btn"
+                    style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 0.4rem 1rem; font-size: 0.9rem;">Solve
+                    Now</button>
+            </div>
+        </div>
+
+        <!-- Bounty Card 2 -->
+        <div class="glass-card"
+            style="min-width: 320px; margin-bottom: 0; position: relative; overflow: hidden; border: 1px solid rgba(16, 185, 129, 0.3);">
+            <div
+                style="position: absolute; top: 0; right: 0; background: #10b981; color: #0f172a; font-weight: 700; padding: 0.2rem 0.8rem; border-bottom-left-radius: 12px; font-size: 0.8rem;">
+                +30 XP
+            </div>
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;"><i class="fa-brands fa-css3-alt"></i> CSS Grid Layout
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Create a responsive masonry
+                layout without JS.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #ef4444; font-size: 0.8rem;"><i class="fa-regular fa-clock"></i> 5h remaining</span>
+                <button class="btn"
+                    style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 0.4rem 1rem; font-size: 0.9rem;">Solve
+                    Now</button>
+            </div>
+        </div>
+
+        <!-- Bounty Card 3 -->
+        <div class="glass-card"
+            style="min-width: 320px; margin-bottom: 0; position: relative; overflow: hidden; border: 1px solid rgba(99, 102, 241, 0.3);">
+            <div
+                style="position: absolute; top: 0; right: 0; background: #6366f1; color: white; font-weight: 700; padding: 0.2rem 0.8rem; border-bottom-left-radius: 12px; font-size: 0.8rem;">
+                +100 XP
+            </div>
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;"><i class="fa-solid fa-database"></i> SQL Optimization
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Optimize this slow running
+                query for a dashboard.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #ef4444; font-size: 0.8rem;"><i class="fa-regular fa-clock"></i> 8h remaining</span>
+                <button class="btn"
+                    style="background: rgba(99, 102, 241, 0.2); color: #6366f1; padding: 0.4rem 1rem; font-size: 0.9rem;">Solve
+                    Now</button>
+            </div>
+        </div>
+
+        <!-- Bounty Card 4 -->
+        <div class="glass-card" style="min-width: 320px; margin-bottom: 0; position: relative; overflow: hidden;">
+            <div
+                style="position: absolute; top: 0; right: 0; background: #ec4899; color: white; font-weight: 700; padding: 0.2rem 0.8rem; border-bottom-left-radius: 12px; font-size: 0.8rem;">
+                +45 XP
+            </div>
+            <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;"><i class="fa-brands fa-react"></i> React Hooks</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Fix the infinite loop in this
+                useEffect.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #ef4444; font-size: 0.8rem;"><i class="fa-regular fa-clock"></i> 12h
+                    remaining</span>
+                <button class="btn"
+                    style="background: rgba(236, 72, 153, 0.2); color: #ec4899; padding: 0.4rem 1rem; font-size: 0.9rem;">Solve
+                    Now</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="glass-card animate-fade-in" style="animation-delay: 0.4s; margin-top: 2rem;">
+    <h2>Recent Activity</h2>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; color: var(--text-muted);">
+        <thead>
+            <tr style="text-align: left; border-bottom: 1px solid var(--glass-border);">
+                <th style="padding: 1rem 0;">Activity</th>
+                <th>Date</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 1rem 0;">Completed 'Advanced React' skill assessment</td>
+                <td>Oct 24, 2024</td>
+                <td style="color: #10b981;">Verified</td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 1rem 0;">Updated Semester 5 GPA</td>
+                <td>Oct 20, 2024</td>
+                <td>Pending Review</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // --- Learning Curve Chart (Area) ---
+    const ctx = document.getElementById('learningCurveChart').getContext('2d');
+
+    let gradientBlue = ctx.createLinearGradient(0, 0, 0, 400);
+    gradientBlue.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+    gradientBlue.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+
+    let gradientGreen = ctx.createLinearGradient(0, 0, 0, 400);
+    gradientGreen.addColorStop(0, 'rgba(16, 185, 129, 0.5)');
+    gradientGreen.addColorStop(1, 'rgba(16, 185, 129, 0.05)');
+
+    let gradientRed = ctx.createLinearGradient(0, 0, 0, 400);
+    gradientRed.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
+    gradientRed.addColorStop(1, 'rgba(239, 68, 68, 0.05)');
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8'],
+            datasets: [
+                {
+                    label: 'SDE Profile',
+                    data: [10, 25, 40, 55, 78, 85, 92, 95],
+                    borderColor: '#3b82f6',
+                    backgroundColor: gradientBlue,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                },
+                {
+                    label: 'Full Stack Dev',
+                    data: [15, 30, 45, 60, 65, 70, 80, 88],
+                    borderColor: '#10b981',
+                    backgroundColor: gradientGreen,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                },
+                {
+                    label: 'AI/ML Engineer',
+                    data: [5, 15, 25, 40, 60, 85, 90, 98],
+                    borderColor: '#ef4444',
+                    backgroundColor: gradientRed,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { color: '#f8fafc', font: { family: "'Outfit', sans-serif" } } },
+                tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', titleColor: '#f8fafc', bodyColor: '#94a3b8', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            }
+        }
+    });
+
+    document.getElementById('roleSelect').addEventListener('change', (e) => {
+        const selected = e.target.value;
+        const map = { 'sde': 0, 'fsd': 1, 'ai': 2 };
+        chart.data.datasets.forEach((dataset, index) => {
+            if (selected === 'all') { dataset.hidden = false; }
+            else { dataset.hidden = (index !== map[selected]); }
+        });
+        chart.update();
+    });
+
+    // --- Role Suitability Chart (Radial Progress) ---
+    const ctxRadial = document.getElementById('roleSuitabilityChart').getContext('2d');
+
+    // Creating concentric rings using multiple datasets
+    const radialChart = new Chart(ctxRadial, {
+        type: 'doughnut',
+        data: {
+            labels: ['SDE', 'Full Stack', 'AI/ML'],
+            datasets: [
+                {
+                    label: 'SDE',
+                    data: [87, 13],
+                    backgroundColor: ['#3b82f6', 'transparent'],
+                    borderWidth: 0,
+                    circumference: 360,
+                    rotation: 0,
+                    cutout: '80%' // Outer ring
+                },
+                {
+                    label: 'Full Stack',
+                    data: [65, 35],
+                    backgroundColor: ['#10b981', 'transparent'],
+                    borderWidth: 0,
+                    circumference: 360,
+                    rotation: 0,
+                    cutout: '65%' // Middle ring (smaller radius via bar thickness trick or multiple charts... actually standard Chart.js requires plugin or trickery for true concentric. 
+                    // Better approach for standard Chart.js v3+ to mimic concentric: use 'bar' with radial axis? No.
+                    // Let's use simple multiple datasets with different weights/cutouts. 
+                    // Actually, simpler: Standard Doughnut with 3 segments is NOT concentric.
+                    // Concentric rings require each dataset to have a different radius.
+                    // In Chart.js, datasets in 'doughnut' draw OUTER to INNER by default index.
+                },
+                {
+                    label: 'AI/ML',
+                    data: [45, 55],
+                    backgroundColor: ['#ec4899', 'transparent'],
+                    borderWidth: 0,
+                    circumference: 360,
+                    rotation: 0,
+                    // If we provide multiple datasets to a doughnut, they render as concentric rings!
+                    // Dataset 0 is outer, Dataset last is inner. Perfect.
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '50%', // Global cutout for the innermost
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+            },
+            animation: { animateScale: true, animateRotate: true }
+        }
+    });
+</script>
+{% endblock %}
