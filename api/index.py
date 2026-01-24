@@ -8,6 +8,7 @@ from sqlalchemy import func
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 import easyocr
 from functools import wraps
 
@@ -216,13 +217,87 @@ def dashboard():
     # Fetch Verified Skills
     verified_skills = Skill.query.filter_by(student_id=student.id, verified=True).all()
     
+    # --- Daily Bounty Logic ---
+    bounty = None
+    today = datetime.utcnow().date()
+    
+    # Check if already solved today
+    is_solved_today = False
+    if student.last_bounty_date == today:
+        is_solved_today = True
+    elif verified_skills:
+        # Check session for existing bounty
+        if session.get('bounty_data') and session.get('bounty_skill') in [s.skill_name for s in verified_skills]:
+            bounty = session['bounty_data']
+        else:
+            # Generate new bounty
+            import random
+            target_skill = random.choice(verified_skills).skill_name
+            print(f"Generating Daily Bounty for: {target_skill}")
+            
+            bounty_prompt = (
+                f"Create a specific, TOUGH, advanced-level multiple choice question for a developer skilled in '{target_skill}'. "
+                "The question should test deep understanding or edge cases. "
+                "Provide 4 distinct options. Mark the correct one INDEPENDENTLY in the 'answer' field (e.g., index 0-3). "
+                "Return strictly JSON: {\"question\": \"...\", \"options\": [\"A. ...\", \"B. ...\", \"C. ...\", \"D. ...\"], \"answer\": 0} "
+                "No markdown."
+            )
+            
+            bounty_resp = ask_llama("", bounty_prompt)
+            
+            # Parse
+            import json
+            import re
+            clean_bounty = re.sub(r'```json\s*|\s*```', '', bounty_resp).strip()
+            try:
+                s_idx = clean_bounty.find('{')
+                e_idx = clean_bounty.rfind('}')
+                if s_idx != -1 and e_idx != -1:
+                    bounty_data = json.loads(clean_bounty[s_idx:e_idx+1])
+                    bounty_data['skill'] = target_skill
+                    session['bounty_data'] = bounty_data
+                    session['bounty_skill'] = target_skill
+                    bounty = bounty_data
+            except Exception as be:
+                print(f"Bounty Generation Error: {be}")
+    else:
+        session.pop('bounty_data', None)
+
     scores = {
         'roles': top_roles,
         'best_fit': best_role['role'] if best_role else 'N/A',
         'best_score': best_role['score'] if best_role else 0
     }
 
-    return render_template('dashboard.html', student=student, scores=scores, verified_skills=verified_skills)
+    return render_template('dashboard.html', student=student, scores=scores, verified_skills=verified_skills, bounty=bounty, is_solved_today=is_solved_today)
+
+@app.route('/solve_bounty', methods=['POST'])
+@login_required
+def solve_bounty():
+    selected_option = int(request.form.get('option_index'))
+    bounty_data = session.get('bounty_data')
+    
+    if not bounty_data:
+        flash("Expired or invalid bounty.")
+        return redirect(url_for('dashboard'))
+        
+    correct_answer = int(bounty_data.get('answer'))
+    
+    student = Student.query.get(session['user_id'])
+    student.last_bounty_date = datetime.utcnow().date() # Mark attempt for today regardless of outcome
+    
+    if selected_option == correct_answer:
+        # Correct!
+        student.xp += 50
+        flash("Correct! +50 XP Added.")
+    else:
+        # Incorrect - No XP, but burnt the chance
+        flash("Incorrect answer. Better luck tomorrow!")
+        
+    db.session.commit()
+    session.pop('bounty_data', None) # Clear from session
+        
+    return redirect(url_for('dashboard'))
 
 @app.route('/upload_resume', methods=['POST'])
 def upload_resume():
@@ -303,10 +378,44 @@ def upload_resume():
                 flash('Please login to save resume data.')
                 return redirect(url_for('login'))
 
-            # Update Student Top Roles
-            # Note: Ensure your Student model has a 'top_roles' column (JSON type)
+            # Update Student Top Roles & Reset Market Analysis
             student.top_roles = top_roles_data
+            student.market_analysis = None # Force regeneration of market insights
             
+            # --- ROADMAP GENERATION ---
+            try:
+                # Determine best role (fallback to software engineer)
+                best_role = top_roles_data[0]['role'] if top_roles_data else "Software Engineer"
+                print(f"Generating personalized roadmap for: {best_role}")
+                
+                roadmap_prompt = (
+                    f"Create a step-by-step learning roadmap for a student aspiring to be a '{best_role}'. "
+                    "Based on the resume content provided earlier, mark steps as 'Completed' if they clearly have the skill. "
+                    "Mark ALL remaining steps as 'Focus'. Do not use 'Locked' or 'In Progress'. "
+                    "CRITICAL LOGIC RULE: If a higher-level step (e.g., Step 4) is marked 'Completed', ALL previous steps (Step 1, 2, 3) MUST also be marked 'Completed', regardless of explicit mention in the resume. "
+                    "Return strictly a JSON list of objects. Each object must have: "
+                    "'title' (string), 'description' (short string), 'status' ('Completed', 'Focus'). "
+                    "Example: [{\"title\": \"Python\", \"description\": \"Data Structures\", \"status\": \"Completed\"}]. "
+                    "Generate exactly 5-6 major steps. Do not use Markdown.\n\n"
+                    f"Resume Context: {extracted_text[:1000]}"
+                )
+                
+                roadmap_response = ask_llama("", roadmap_prompt)
+                
+                # Parse Roadmap JSON
+                clean_rmap = re.sub(r'```json\s*|\s*```', '', roadmap_response).strip()
+                # Find JSON array
+                idx_start = clean_rmap.find('[')
+                idx_end = clean_rmap.rfind(']')
+                if idx_start != -1 and idx_end != -1:
+                    roadmap_data = json.loads(clean_rmap[idx_start:idx_end+1])
+                    student.roadmap = roadmap_data
+                    print(f"DEBUG: Roadmap saved with {len(roadmap_data)} steps.")
+                else:
+                    print("DEBUG: Roadmap JSON not found in response.")
+            except Exception as r_e:
+                print(f"Error generating roadmap: {r_e}")
+
             # Create Resume Record
             new_resume = Resume(student_id=student.id, filename=filename, ocr_content=extracted_text)
             db.session.add(new_resume)
@@ -506,12 +615,62 @@ def career():
     return render_template('career.html')
 
 @app.route('/roadmap')
+@login_required
 def roadmap():
-    return render_template('roadmap.html')
+    student = Student.query.get(session['user_id'])
+    return render_template('roadmap.html', student=student)
 
 @app.route('/market')
+@login_required
 def market():
-    return render_template('market.html')
+    student = Student.query.get(session['user_id'])
+    
+    if not student:
+        flash('User not found.')
+        return redirect(url_for('login'))
+    
+    # Check if analysis exists, if so render it to save API calls
+    if student.market_analysis:
+        return render_template('market.html', student=student, analysis=student.market_analysis)
+
+    # Generate Analysis
+    resume = Resume.query.filter_by(student_id=student.id).order_by(Resume.uploaded_at.desc()).first()
+    resume_text = resume.ocr_content if resume else "Student with basic Computer Science skills."
+
+    print("Generating Market Analysis...")
+    prompt = (
+        "Analyze the current tech job market and this candidate's resume.\n"
+        "1. Identify 3 High Paying 'Booming' Roles. For each, provide Avg Package (e.g. '$150k') and 3 specific skills they lack.\n"
+        "2. Identify 2 Target Roles suitable for them. Estimate progress (0-100%) and provide strategic advice + 2 action items.\n"
+        "Return strict JSON with keys: 'market_roles' and 'optimization'.\n"
+        "Example:\n"
+        "{\n"
+        "  \"market_roles\": [{\"role\": \"AI Architect\", \"package\": \"$160k\", \"skills\": [\"LLMs\", \"System Design\"]}],\n"
+        "  \"optimization\": [{\"role\": \"Backend Dev\", \"progress\": 60, \"advice\": \"Good Python, weak DB.\", \"actions\": [\"Learn Redis\", \"Build API\"]}]\n"
+        "}\n\n"
+        f"Resume Content: {resume_text[:2000]}"
+    )
+
+    response = ask_llama("", prompt)
+    
+    # Parse JSON
+    import json
+    import re
+    clean_json = re.sub(r'```json\s*|\s*```', '', response).strip()
+    try:
+        # Find start/end brackets to be safe
+        s = clean_json.find('{')
+        e = clean_json.rfind('}')
+        if s != -1 and e != -1:
+            analysis_data = json.loads(clean_json[s:e+1])
+            student.market_analysis = analysis_data
+            db.session.commit()
+            return render_template('market.html', student=student, analysis=analysis_data)
+    except Exception as e:
+        print(f"Market Analysis Error: {e}")
+    
+    # Fallback empty
+    return render_template('market.html', student=student, analysis=None)
 
 @app.route('/mentors')
 def mentors():
