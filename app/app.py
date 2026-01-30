@@ -13,7 +13,7 @@ from functools import wraps
 
 # --- DB Import ---
 # Importing the new Firestore 'Student' class from your models.py
-from .models import Student
+from models import Student
 
 # -------------------------------
 # LLaMA / OpenRouter Config
@@ -139,7 +139,7 @@ def login():
         if student and student.password_hash and check_password_hash(student.password_hash, password):
             session['user_id'] = student.id
             session['user_name'] = student.name
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('create_resume'))
         else:
             flash('Invalid email or password')
             
@@ -174,7 +174,7 @@ def signup():
         session['user_id'] = new_student.id
         session['user_name'] = new_student.name
         
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('create_resume'))
         
     return render_template('signup.html')
 
@@ -606,11 +606,99 @@ def leetcode_analysis():
     
     flash("LeetCode profile analyzed successfully!")
     
-    # Check if request came from leetcode page or dashboard
     if request.form.get('source_page') == 'leetcode':
         return redirect(url_for('leetcode'))
         
     return redirect(url_for('dashboard'))
+
+# --- Resume Builder Routes ---
+@app.route('/resume_builder')
+# @login_required 
+def resume_builder():
+    resume_data = session.get('resume_data', {})
+    return render_template('resume_builder.html', resume_data=resume_data)
+
+@app.route('/create-resume')
+# @login_required
+def create_resume():
+    """Separate route for the specific 'Create Your Resume' page."""
+    resume_data = session.get('resume_data', {})
+    return render_template('create_resume.html', resume_data=resume_data, hide_sidebar=True)
+
+@app.route('/generate_resume', methods=['POST'])
+def generate_resume():
+    full_name = request.form.get('full_name')
+    institute_name = request.form.get('institute_name')
+    degree = request.form.get('degree')
+    github_id = request.form.get('github_id')
+    leetcode_id = request.form.get('leetcode_id')
+    skills_str = request.form.get('skills')
+    summary = request.form.get('summary')
+    
+    skills_list = [s.strip() for s in skills_str.split(',') if s.strip()]
+    
+    # Process Projects
+    project_titles = request.form.getlist('project_title')
+    project_descs = request.form.getlist('project_desc')
+    project_links = request.form.getlist('project_link')
+    
+    projects = []
+    if project_titles:
+        for i in range(len(project_titles)):
+            if project_titles[i].strip():
+                projects.append({
+                    'title': project_titles[i],
+                    'desc': project_descs[i] if i < len(project_descs) else "",
+                    'link': project_links[i] if i < len(project_links) else ""
+                })
+
+    # Process Achievements
+    achievements_str = request.form.get('achievements')
+    achievements_list = []
+    if achievements_str:
+        # Split by new line
+        achievements_list = [a.strip() for a in achievements_str.split('\n') if a.strip()]
+
+    # Construct Links
+    github_url = f"https://github.com/{github_id}" if github_id else "#"
+    leetcode_url = f"https://leetcode.com/{leetcode_id}" if leetcode_id else "#"
+    
+    # Get Email if logged in
+    email = session.get('user_email', '') 
+    if 'user_id' in session:
+        student = Student.get_by_id(session['user_id'])
+        if student:
+            email = student.email
+
+    data = {
+        'full_name': full_name,
+        'institute_name': institute_name,
+        'degree': degree,
+        'github_id': github_id,
+        'leetcode_id': leetcode_id,
+        'github_url': github_url,
+        'leetcode_url': leetcode_url,
+        'skills_list': skills_list,
+        'summary': summary, # Add summary
+        'projects': projects,
+        'achievements': achievements_list,
+        'email': email
+    }
+
+    # --- SESSION STORAGE FOR EDITING ---
+    session['resume_data'] = {
+        'full_name': full_name,
+        'institute_name': institute_name,
+        'degree': degree,
+        'github_id': github_id,
+        'leetcode_id': leetcode_id,
+        'skills': skills_str,
+        'summary': summary, # Add summary
+        'projects': projects,
+        'achievements': achievements_str
+    }
+    
+    return render_template('generated_resume.html', data=data)
 
 # --- Pages ---
 
