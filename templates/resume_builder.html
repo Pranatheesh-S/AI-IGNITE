@@ -22,6 +22,30 @@
                     value="{{ resume_data.get('institute_name', '') }}">
             </div>
 
+            <div class="form-group">
+                <label for="degree">Degree</label>
+                <select id="degree" name="degree"
+                    style="width: 100%; padding: 0.8rem 1rem; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-primary); font-family: 'Outfit', sans-serif; font-size: 1rem;">
+                    <option value="" disabled selected>Select your degree</option>
+                    <option value="B.E.">B.E. (Bachelor of Engineering)</option>
+                    <option value="B.Tech">B.Tech (Bachelor of Technology)</option>
+                    <option value="B.Sc">B.Sc (Bachelor of Science)</option>
+                    <option value="M.E.">M.E. (Master of Engineering)</option>
+                    <option value="M.Tech">M.Tech (Master of Technology)</option>
+                    <option value="M.Sc">M.Sc (Master of Science)</option>
+                    <option value="BCA">BCA (Bachelor of Computer Applications)</option>
+                    <option value="MCA">MCA (Master of Computer Applications)</option>
+                </select>
+                <style>
+                    /* Ensure dropdown options are dark */
+                    #degree option {
+                        background-color: #1e293b;
+                        /* Slate-800 */
+                        color: white;
+                    }
+                </style>
+            </div>
+
             <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
                     <label for="github_id">GitHub Username / ID</label>
@@ -48,6 +72,13 @@
                     value="{{ resume_data.get('skills', '') }}">
                 <small style="color: rgba(255,255,255,0.6); display: block; margin-top: 0.5rem;">List your top technical
                     skills separated by commas.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="specialization">Specialization / Field of Interest</label>
+                <input type="text" id="specialization" name="specialization"
+                    placeholder="e.g. Full Stack Development, Data Science, Embedded Systems" required
+                    value="{{ resume_data.get('specialization', '') }}">
             </div>
 
             <div class="form-group">

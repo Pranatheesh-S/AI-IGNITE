@@ -4,12 +4,15 @@ import requests
 import json
 import re
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import easyocr
 from functools import wraps
+import firebase_admin
+from firebase_admin import credentials, firestore
+import google.generativeai as genai
 
 # --- DB Import ---
 # Importing the new Firestore 'Student' class from your models.py
@@ -633,6 +636,7 @@ def generate_resume():
     github_id = request.form.get('github_id')
     leetcode_id = request.form.get('leetcode_id')
     skills_str = request.form.get('skills')
+    specialization = request.form.get('specialization')
     summary = request.form.get('summary')
     
     skills_list = [s.strip() for s in skills_str.split(',') if s.strip()]
@@ -679,12 +683,14 @@ def generate_resume():
         'github_url': github_url,
         'leetcode_url': leetcode_url,
         'skills_list': skills_list,
+        'specialization': specialization,
         'summary': summary, # Add summary
         'projects': projects,
         'achievements': achievements_list,
         'email': email
     }
 
+    # --- SESSION STORAGE FOR EDITING ---
     # --- SESSION STORAGE FOR EDITING ---
     session['resume_data'] = {
         'full_name': full_name,
@@ -693,11 +699,113 @@ def generate_resume():
         'github_id': github_id,
         'leetcode_id': leetcode_id,
         'skills': skills_str,
+        'specialization': specialization,
         'summary': summary, # Add summary
         'projects': projects,
         'achievements': achievements_str
     }
-    
+
+    # --- ONE-TIME CAREER PATHWAY DERIVATION (FIREBASE) ---
+    try:
+        if 'user_id' in session:
+            student = Student.get_by_id(session['user_id'])
+            
+            # RUN ONCE RULE: Only if not already derived
+            if student and not student.data.get('profileDerived'):
+                print("🧠 Deriving Career Pathway for the first time...")
+                
+                # Construct strict prompt for LLaMA
+                pathway_prompt = (
+                    "You are a strict Career Pathway Engine. Analyze this student profile and derive metadata.\n"
+                    "RULES:\n"
+                    "1. Anchor to Course/Degree/Branch (60% weight).\n"
+                    "   - If 'Specialization' field is provided, it modifies/refines the Course anchor.\n"
+                    "   - software: cse, it, ai, or software specialization\n"
+                    "   - hardware: ece, eee, biomedical, or hardware specialization\n"
+                    "   - core: mech, civil\n"
+                    "2. Resume Skills are secondary (40% weight).\n"
+                    "3. If Specialization strongly conflicts with Course (e.g. Civil + Data Science), treat Course as Primary foundation and Specialization as dominant Secondary Track.\n"
+                    "4. Output strict JSON with fields: 'course' (inferred), 'primaryDomain', 'secondaryDomains' (list), 'pathwayType', 'pathwayWeights'.\n"
+                    "\n"
+                    f"Degree: {degree}\n"
+                    f"Institute: {institute_name}\n"
+                    f"Specialization: {specialization}\n"
+                    f"Skills: {', '.join(skills_list)}\n"
+                    f"Projects: {str(projects)}\n"
+                    "\n"
+                    "Return JSON only."
+                )
+                
+                # Call AI
+                ai_resp = ask_llama("", pathway_prompt)      
+                
+                # Parse and Save
+                import json
+                import re
+                try:
+                    clean_json = re.sub(r'```json\s*|\s*```', '', ai_resp).strip()
+                    pathway_data = json.loads(clean_json)
+                    
+                    # Add system fields
+                    pathway_data['profileDerived'] = True
+                    pathway_data['derivedAt'] = datetime.utcnow().isoformat()
+                    pathway_data['derivationTrigger'] = "profile_creation"
+                    
+                    # Update Firestore
+                    student.update(pathway_data)
+                    print("✅ Career Pathway Saved to Firebase.")
+                    
+                except Exception as parse_err:
+                    print(f"❌ Pathway Derivation Failed: {parse_err}")
+
+        # --- ROADMAP GENERATION (ALWAYS UPDATE) ---
+        try:
+            print("🗺️ Generating Roadmap...")
+            roadmap_prompt = (
+                "Create a 5-step detailed learning roadmap for this student.\n"
+                "JSON format list of objects: [{'title', 'description', 'status'}].\n"
+                "Status options: 'Completed' (if they have skills), 'Focus' (next step), 'Locked' (future).\n"
+                "\n"
+                f"Course: {degree}\n"
+                f"Specialization: {specialization}\n"
+                f"Current Skills: {', '.join(skills_list)}\n"
+                f"Goal Role: {specialization if specialization else 'Software Engineer'}\n"
+                "\n"
+                "Return JSON only."
+            )
+            
+            roadmap_resp = ask_llama("", roadmap_prompt)
+            import re
+            import json
+            clean_roadmap_json = re.sub(r'```json\s*|\s*```', '', roadmap_resp).strip()
+            
+            # Handle potential wrapping in quotes or dict
+            try:
+                roadmap_data = json.loads(clean_roadmap_json)
+                
+                # Check if wrapped in a key
+                if isinstance(roadmap_data, dict):
+                    # Try to find a list value or use the first key
+                    for k, v in roadmap_data.items():
+                        if isinstance(v, list):
+                            roadmap_data = v
+                            break
+                
+                if isinstance(roadmap_data, list):
+                    student.update({'roadmap': roadmap_data})
+                    print("✅ Roadmap Updated.")
+                else:
+                    print("⚠️ Roadmap format invalid (not a list).")
+                    
+            except json.JSONDecodeError:
+                print("⚠️ Roadmap JSON Decode Error.")
+
+        except Exception as r_err:
+             print(f"❌ Roadmap Generation Error: {r_err}")
+
+    except Exception as e:
+        print(f"⚠️ Pathway Logic Error: {e}")
+
     return render_template('generated_resume.html', data=data)
 
 # --- Pages ---
@@ -791,6 +899,173 @@ def skills():
 
 # Initialize DB
 # REMOVED: db.create_all() (Not needed for Firestore)
+
+# -------------------------------
+# ANALYSIS CONFIG (GITHUB/LEETCODE)
+# -------------------------------
+GITHUB_API_BASE = "https://api.github.com"
+
+COURSE_DOMAIN_MAP = {
+    "cse": "software",
+    "it": "software",
+    "ai": "software",
+    "aiml": "software",
+    "ece": "hardware",
+    "eee": "hardware",
+    "biomedical": "hardware",
+    "mechanical": "core",
+    "mech": "core",
+    "civil": "core"
+}
+
+PROJECT_DOMAIN_RULES = {
+    "software": ["python", "java", "javascript", "react", "node", "flask", "django", "c++", "golang"],
+    "data": ["machine learning", "ml", "pandas", "numpy", "pytorch", "tensorflow", "data analysis"],
+    "hardware": ["arduino", "esp32", "embedded", "iot", "circuit", "pcb", "verilog", "fpga"],
+    "web": ["html", "css", "react", "frontend", "backend", "full stack"],
+    "core": ["matlab", "ansys", "solidworks", "cad", "simulation", "thermodynamics", "mechanics"]
+}
+
+REQUIRED_PROJECTS = {
+    "software": ["backend api", "database integration", "full stack app"],
+    "hardware": ["embedded system", "sensor interfacing", "iot dashboard"],
+    "data": ["ml model deployment", "exploratory data analysis"],
+    "core": ["simulation project", "design prototype"],
+    "web": ["responsive website", "full stack app"]
+}
+
+# -------------------------------
+# GITHUB HELPER FUNCTIONS
+# -------------------------------
+def get_github_repos(username):
+    try:
+        url = f"{GITHUB_API_BASE}/users/{username}/repos"
+        res = requests.get(url, timeout=5)
+        if res.status_code != 200:
+            return []
+        repos = []
+        for repo in res.json():
+            repos.append({
+                "name": repo["name"],
+                "description": repo["description"] or "",
+                "languages_url": repo["languages_url"],
+                "html_url": repo["html_url"],
+                "commits": repo["size"]
+            })
+        return repos
+    except:
+        return []
+
+def get_repo_languages(languages_url):
+    try:
+        res = requests.get(languages_url, timeout=5)
+        if res.status_code != 200:
+            return []
+        return list(res.json().keys())
+    except:
+        return []
+
+def classify_project(description, languages):
+    text = (description + " " + " ".join(languages)).lower()
+    scores = {d: 0 for d in PROJECT_DOMAIN_RULES}
+    for domain, keywords in PROJECT_DOMAIN_RULES.items():
+        for kw in keywords:
+            if kw in text:
+                scores[domain] += 1
+    # If all scores 0, return unknown or default
+    if max(scores.values()) == 0:
+        return "unknown"
+    return max(scores, key=scores.get)
+
+def analyze_github(username):
+    repos = get_github_repos(username)
+    analysis = []
+    domains_found = []
+    for repo in repos:
+        languages = get_repo_languages(repo["languages_url"])
+        domain = classify_project(repo["description"], languages)
+        if domain != 'unknown':
+            domains_found.append(domain)
+        analysis.append({
+            "repo_name": repo["name"],
+            "domain": domain,
+            "languages": languages,
+            "url": repo["html_url"]
+        })
+    return analysis, list(set(domains_found))
+
+def detect_primary_domain(course):
+    course = course.lower() if course else ""
+    for key in COURSE_DOMAIN_MAP:
+        if key in course:
+            return COURSE_DOMAIN_MAP[key]
+    return "software"
+
+# -------------------------------
+# ANALYSIS ROUTES
+# -------------------------------
+@app.route("/analyze", methods=["POST"])
+@login_required # Use session
+def analyze_profile():
+    data = request.json
+    github_username = data.get("github_username")
+    
+    if not github_username:
+        return jsonify({"error": "github_username is required"}), 400
+
+    student = Student.get_by_id(session['user_id'])
+    
+    # 1. Determine Target Domains from Firebase (Primary + Secondary)
+    primary_domain = student.data.get('primaryDomain')
+    # Use fallback if DB empty
+    if not primary_domain:
+         course_name = data.get("course") or student.data.get('degree', "")
+         primary_domain = detect_primary_domain(course_name)
+         
+    secondary_domains = student.data.get('secondaryDomains', [])
+    
+    # Combined Targets
+    target_domains = [primary_domain] + secondary_domains
+    
+    # 2. Analyze Repos
+    repo_analysis, detected_domains = analyze_github(github_username)
+    
+    # 3. Gap Analysis
+    # Logic: For each target domain (e.g. 'hardware'), check if user has 'hardware' projects.
+    # If not, add the required projects for that domain.
+    gaps = []
+    
+    for target in target_domains:
+        target = target.lower()
+        # Check if this domain is covered by any repo
+        # Note: 'classify_project' returns keys from PROJECT_DOMAIN_RULES.
+        # We check if 'target' is in 'detected_domains'.
+        if target == 'software':
+            # Software is broad, allow 'web' or 'software' matches
+            if 'software' not in detected_domains and 'web' not in detected_domains:
+                gaps.extend(REQUIRED_PROJECTS.get('software', []))
+        elif target not in detected_domains:
+             # Generically check coverage
+             gaps.extend(REQUIRED_PROJECTS.get(target, []))
+
+    response = {
+        "github_user": github_username,
+        "primary_domain": primary_domain,
+        "secondary_domains": secondary_domains,
+        "repo_count": len(repo_analysis),
+        "projects": repo_analysis,
+        "github_domains_detected": detected_domains,
+        "missing_projects": list(set(gaps)), # Unique list
+        "career_readiness": "Good" if not gaps else "Needs Improvement"
+    }
+    return jsonify(response)
+
+@app.route('/analysis')
+@login_required
+def analysis():
+    student = Student.get_by_id(session['user_id'])
+    return render_template('analysis.html', student=student)
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
