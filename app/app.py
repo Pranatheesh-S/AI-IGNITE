@@ -146,6 +146,151 @@ def fetch_github_data(username):
         print(f"GitHub Fetch Error: {e}")
         return []
 
+# -------------------------------
+# ROLE → PROJECT EXPECTATION MAP
+# -------------------------------
+ROLE_PROJECT_REQUIREMENTS = {
+    "software": {
+        "critical": {
+            "REST API": ["api", "flask", "fastapi", "node", "express", "django"],
+            "Database Integration": ["sql", "mongodb", "firebase", "postgres", "sqlite"],
+            "Authentication System": ["jwt", "auth", "oauth", "login"]
+        },
+        "optional": {
+            "Cloud Deployment": ["docker", "aws", "kubernetes", "vercel"],
+            "Microservices": ["microservice", "grpc"]
+        }
+    },
+    "machine learning": {
+        "critical": {
+            "ML Model Project": ["classification", "regression", "scikit", "sklearn", "ml model"],
+            "Deep Learning Project": ["cnn", "rnn", "lstm", "transformer", "pytorch", "tensorflow", "keras"],
+            "Data Pipeline / EDA": ["pandas", "numpy", "eda", "data analysis", "cleaning"]
+        },
+        "optional": {
+            "Deployment": ["flask", "fastapi", "streamlit", "gradio"],
+            "Computer Vision": ["opencv", "yolo", "vision"]
+        }
+    },
+    "web": {
+        "critical": {
+            "Frontend App": ["react", "vue", "angular", "html", "css", "tailwind", "bootstrap"],
+            "Backend API": ["node", "express", "flask", "django", "php"],
+            "Database": ["sql", "mongo", "firebase"]
+        },
+         "optional": {
+            "Full Stack": ["mern", "mean", "fullstack"],
+            "Authentication": ["auth", "jwt"]
+        }
+    },
+    "embedded": {
+        "critical": {
+             "Microcontroller": ["arduino", "esp32", "stm32", "raspberry", "avr"],
+             "Sensors & Actuators": ["sensor", "motor", "iot", "circuit"],
+             "Communication Protocols": ["i2c", "spi", "uart", "mqtt"]
+        },
+        "optional": {
+             "RTOS": ["freertos", "rtos"],
+             "PCB Design": ["kicad", "eagle", "pcb"]
+        }
+    }
+}
+
+# -------------------------------
+# NORMALIZE REPO TEXT
+# -------------------------------
+def normalize_repo_text(repo):
+    """
+    Convert repo content into searchable lowercase text
+    """
+    return (
+        repo["name"] + " " +
+        repo["description"] + " " +
+        " ".join(repo["languages"])
+    ).lower()
+
+# -------------------------------
+# CORE ANALYSIS FUNCTION (RULE BASED)
+# -------------------------------
+def analyze_github_rule_based(repos, target_role_key):
+    """
+    Analyze GitHub repositories based on target career role using strict rules.
+    """
+    # Normalize key
+    target_role_key = target_role_key.lower() if target_role_key else "software"
+    
+    if 'data' in target_role_key or 'ai' in target_role_key or 'ml' in target_role_key: target_role_key = 'machine learning'
+    elif 'web' in target_role_key: target_role_key = 'web'
+    elif 'embedded' in target_role_key or 'hardware' in target_role_key: target_role_key = 'embedded'
+    elif 'software' in target_role_key: target_role_key = 'software'
+    else: target_role_key = 'software' # Default
+
+    role_config = ROLE_PROJECT_REQUIREMENTS.get(target_role_key, ROLE_PROJECT_REQUIREMENTS['software'])
+
+    critical = role_config["critical"]
+    optional = role_config["optional"]
+
+    covered_critical = set()
+    covered_optional = set()
+    repo_analysis_map = {} # Map repo name to matched domains
+
+    detected_domains = set()
+
+    for repo in repos:
+        text = normalize_repo_text(repo)
+        matched_projects = []
+        
+        # Simple domain detection for classification
+        is_web = any(x in text for x in ['html', 'css', 'react', 'node'])
+        is_ml = any(x in text for x in ['pandas', 'torch', 'sklearn', 'model'])
+        is_embedded = any(x in text for x in ['arduino', 'iot', 'esp'])
+        
+        domain_label = "General"
+        if is_web: domain_label = "Web Dev"
+        elif is_ml: domain_label = "AI/ML"
+        elif is_embedded: domain_label = "Embedded/IoT"
+        
+        if domain_label != "General":
+            detected_domains.add(domain_label)
+
+        # Check critical requirements
+        for project, keywords in critical.items():
+            if any(keyword in text for keyword in keywords):
+                covered_critical.add(project)
+                matched_projects.append(project)
+
+        # Check optional boosters
+        for project, keywords in optional.items():
+            if any(keyword in text for keyword in keywords):
+                covered_optional.add(project)
+                matched_projects.append(project)
+        
+        repo_analysis_map[repo['name']] = {
+            'domain': domain_label,
+            'matched': matched_projects
+        }
+
+    missing_critical = [
+        project for project in critical.keys()
+        if project not in covered_critical
+    ]
+
+    # Readiness scoring logic
+    if not missing_critical:
+        readiness = "Job Ready"
+    elif len(missing_critical) <= 1:
+        readiness = "Good Progress"
+    else:
+        readiness = "Needs Improvement"
+
+    return {
+        "repo_map": repo_analysis_map,
+        "detected_domains": list(detected_domains),
+        "missing_projects": missing_critical,
+        "career_readiness": readiness,
+        "optional_suggestions": [k for k in optional.keys() if k not in covered_optional]
+    }
+
 # --- Helper: Connect to LLaMA for Chat ---
 def chat_llama(messages):
     """
@@ -291,24 +436,31 @@ def dashboard():
     if is_solved_today:
         pass # Already solved
     elif verified_skills:
-        # Check session for existing bounty
-        # skills in Firestore are dicts: {'skill_name': '...', 'verified': True}
+        # Check session for existing bounty (Must be a list now)
         skill_names = [s['skill_name'] for s in verified_skills if s.get('verified')]
         
-        if session.get('bounty_data') and session.get('bounty_skill') in skill_names:
-            bounty = session['bounty_data']
+        # Check if session has valid list-based bounty
+        existing_bounty = session.get('bounty_data')
+        if existing_bounty and isinstance(existing_bounty, list) and len(existing_bounty) > 0:
+            bounty = existing_bounty
         else:
-            # Generate new bounty
+            # Generate new 5-question bounty
             import random
             if skill_names:
-                target_skill = random.choice(skill_names)
-                print(f"Generating Daily Bounty for: {target_skill}")
+                # Select up to 5 skills (repeat if necessary)
+                target_skills = []
+                for _ in range(5):
+                    target_skills.append(random.choice(skill_names))
+                
+                skills_str = ", ".join(set(target_skills)) # Unique for prompt context
+                print(f"Generating 5 Daily Bounties for: {skills_str}")
                 
                 bounty_prompt = (
-                    f"Create a specific, TOUGH, advanced-level multiple choice question for a developer skilled in '{target_skill}'. "
-                    "The question should test deep understanding or edge cases. "
-                    "Provide 4 distinct options. Mark the correct one INDEPENDENTLY in the 'answer' field (e.g., index 0-3). "
-                    "Return strictly JSON: {\"question\": \"...\", \"options\": [\"A. ...\", \"B. ...\", \"C. ...\", \"D. ...\"], \"answer\": 0} "
+                    f"Create 5 different advanced multiple-choice questions for a developer skilled in: {skills_str}. "
+                    "Distribute questions across these topics if possible. "
+                    "Each question must have 4 options and one correct answer index (0-3). "
+                    "Return strictly a JSON ARRAY of objects. "
+                    "Format: [{\"question\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"answer\": 0, \"skill\": \"...\"}, ...]"
                     "No markdown."
                 )
                 
@@ -317,16 +469,24 @@ def dashboard():
                 # Parse
                 import json
                 import re
-                clean_bounty = re.sub(r'```json\s*|\s*```', '', bounty_resp).strip()
                 try:
-                    s_idx = clean_bounty.find('{')
-                    e_idx = clean_bounty.rfind('}')
+                    clean_bounty = re.sub(r'```json\s*|\s*```', '', bounty_resp).strip()
+                    # Find outer brackets
+                    s_idx = clean_bounty.find('[')
+                    e_idx = clean_bounty.rfind(']')
+                    
                     if s_idx != -1 and e_idx != -1:
-                        bounty_data = json.loads(clean_bounty[s_idx:e_idx+1])
-                        bounty_data['skill'] = target_skill
-                        session['bounty_data'] = bounty_data
-                        session['bounty_skill'] = target_skill
-                        bounty = bounty_data
+                        bounty_list = json.loads(clean_bounty[s_idx:e_idx+1])
+                        
+                        # Validate structure
+                        if isinstance(bounty_list, list) and len(bounty_list) > 0:
+                            session['bounty_data'] = bounty_list
+                            bounty = bounty_list
+                        else:
+                            print("Bounty Generation: Not a valid list.")
+                    else:
+                        print(f"Bounty Parse Fail. Response: {bounty_resp}")
+                        
                 except Exception as be:
                     print(f"Bounty Generation Error: {be}")
     else:
@@ -343,28 +503,34 @@ def dashboard():
 @app.route('/solve_bounty', methods=['POST'])
 @login_required
 def solve_bounty():
-    selected_option = int(request.form.get('option_index'))
-    bounty_data = session.get('bounty_data')
+    bounty_list = session.get('bounty_data')
     
-    if not bounty_data:
+    if not bounty_list or not isinstance(bounty_list, list):
         flash("Expired or invalid bounty.")
         return redirect(url_for('dashboard'))
         
-    correct_answer = int(bounty_data.get('answer'))
+    correct_count = 0
+    total_questions = len(bounty_list)
+    
+    for i, question_data in enumerate(bounty_list):
+        user_answer = request.form.get(f'answer_{i}')
+        if user_answer is not None:
+             if int(user_answer) == int(question_data.get('answer', -1)):
+                 correct_count += 1
     
     student = Student.get_by_id(session['user_id'])
     
-    # FIRESTORE CHANGE: Update logic
+    # Update Logic
     updates = {}
-    updates['last_bounty_date'] = datetime.utcnow() # Store as datetime
+    updates['last_bounty_date'] = datetime.utcnow()
     
-    if selected_option == correct_answer:
-        # Correct!
-        updates['xp'] = student.xp + 50
-        flash("Correct! +50 XP Added.")
+    xp_gained = correct_count * 10 # 10 XP per question
+    
+    if xp_gained > 0:
+        updates['xp'] = student.xp + xp_gained
+        flash(f"You answered {correct_count}/{total_questions} correctly! +{xp_gained} XP Added.")
     else:
-        # Incorrect - No XP, but burnt the chance
-        flash("Incorrect answer. Better luck tomorrow!")
+        flash(f"You answered {correct_count}/{total_questions} correctly. No XP today, try again tomorrow!")
         
     student.update(updates)
     session.pop('bounty_data', None) # Clear from session
@@ -1066,14 +1232,11 @@ def analyze_profile():
 
     student = Student.get_by_id(session['user_id'])
     
-    # 1. Determine Target Domains (Database + Input)
+    # 1. Determine Target Domain
     primary_domain = student.data.get('primaryDomain')
     if not primary_domain:
          course_name = data.get("course") or student.data.get('degree', "")
          primary_domain = detect_primary_domain(course_name)
-         
-    secondary_domains = student.data.get('secondaryDomains', [])
-    target_domains_str = f"{primary_domain}" + (f", {', '.join(secondary_domains)}" if secondary_domains else "")
     
     # 2. Fetch raw data from GitHub
     repos = fetch_github_data(github_username)
@@ -1088,86 +1251,52 @@ def analyze_profile():
             "primary_domain": primary_domain
         })
 
-    # 3. Prepare Context for LLaMA
-    # Limit to top 15 repos to fit context window if needed, but 1000 tokens output is limit.
-    # Input context can be larger.
-    repo_summary = []
-    for r in repos[:15]: 
-        repo_summary.append(f"- Name: {r['name']} | Langs: {', '.join(r['languages'])} | Desc: {r['description']}")
+    # 3. RULE-BASED Analysis
+    analysis_result = analyze_github_rule_based(repos, primary_domain)
     
-    repo_text = "\n".join(repo_summary)
-
-    # 4. Comprehensive LLaMA Analysis
-    print(f"🤖 LLaMA Analysis for {github_username} on domain {target_domains_str}...")
+    repo_map = analysis_result['repo_map']
     
-    prompt = (
-        f"Act as a Senior Tech Interviewer. Analyze these GitHub repositories for a student targeting: {target_domains_str}.\n\n"
-        f"Repositories:\n{repo_text}\n\n"
-        "Perform a comprehensive analysis and return a STRICT JSON object with these exact keys:\n"
-        "1. \"repo_classifications\": A dictionary mapping EACH repo name to its specific technical domain (e.g., \"Web Dev\", \"ML\", \"IoT\").\n"
-        "2. \"detected_domains\": A list of unique domains evident in their work.\n"
-        "3. \"gaps\": A list of 2-3 critical missing project types or skills required for their target but missing in repos.\n"
-        "4. \"readiness\": A string rating (\"Job Ready\", \"Good Progress\", \"Needs Improvement\", or \"Beginner\").\n"
-        "5. \"suggestions\": A list of 3 high-impact project ideas. Each object must have: \"title\", \"description\", \"tech\".\n\n"
-        "JSON ONLY. No markdown."
-    )
-
-    ai_response = ask_llama("", prompt)
-    
-    # 5. Parse and Format Response
-    import json
-    import re
-    
-    try:
-        clean_json = re.sub(r'```json\s*|\s*```', '', ai_response).strip()
-        analysis_data = json.loads(clean_json)
-    except Exception as e:
-        print(f"LLaMA Analysis Parse Error: {e} | Response: {ai_response}")
-        # Fallback partial data
-        analysis_data = {
-            "repo_classifications": {},
-            "detected_domains": [],
-            "gaps": ["Error analyzing profile"],
-            "readiness": "Analysis Failed",
-            "suggestions": []
-        }
-
-    # 6. Construct Frontend Response
-    # Map LLaMA classifications back to the repo list
+    # 4. Construct Frontend Response
     formatted_projects = []
-    classifications = analysis_data.get("repo_classifications", {})
-    
     for r in repos:
-        # Use AI classification or fallback to language-based guess
-        domain = classifications.get(r['name'])
-        if not domain:
-            # Fallback (simple heuristic if AI missed one)
-            desc_lower = (r['description'] + " " + " ".join(r['languages'])).lower()
-            if "html" in desc_lower or "react" in desc_lower: domain = "Web"
-            elif "python" in desc_lower and "data" in desc_lower: domain = "Data/ML"
-            elif "c++" in desc_lower or "arduino" in desc_lower: domain = "Embedded"
-            else: domain = "General Config/Other"
-            
+        repo_info = repo_map.get(r['name'], {})
         formatted_projects.append({
             "repo_name": r["name"],
-            "domain": domain, # Used by frontend
+            "domain": repo_info.get('domain', 'General'), 
             "languages": r["languages"],
             "url": r["url"]
         })
 
+    # 5. Generate Suggestions (Static based on missing)
+    suggestions = []
+    for gap in analysis_result['missing_projects']:
+        suggestions.append({
+            "title": f"Build a {gap}",
+            "description": f"You are missing a critical {gap} project. This is essential for {primary_domain} roles.",
+            "tech": "See standard tech stack"
+        })
+    
+    # If no gaps, suggest optional
+    if not suggestions:
+        for opt in analysis_result['optional_suggestions'][:3]:
+             suggestions.append({
+                "title": f"Explore {opt}",
+                "description": f"Advanced project to boost your profile.",
+                "tech": "Advanced Tech"
+            })
+
     response = {
         "github_user": github_username,
         "primary_domain": primary_domain,
-        "secondary_domains": secondary_domains,
+        "secondary_domains": [],
         "repo_count": len(repos),
-        "projects": formatted_projects, # Matches frontend expectation
-        "github_domains_detected": analysis_data.get("detected_domains", []),
-        "missing_projects": analysis_data.get("gaps", []),
-        "ai_suggestions": analysis_data.get("suggestions", []),
-        "career_readiness": analysis_data.get("readiness", "Pending")
+        "projects": formatted_projects, 
+        "github_domains_detected": analysis_result['detected_domains'],
+        "missing_projects": analysis_result['missing_projects'],
+        "ai_suggestions": suggestions, 
+        "career_readiness": analysis_result['career_readiness']
     }
     
-    # Save to DB for record (optional but good practice)
     student.update({'last_github_analysis': response})
 
     return jsonify(response)
