@@ -503,38 +503,43 @@ def dashboard():
 @app.route('/solve_bounty', methods=['POST'])
 @login_required
 def solve_bounty():
-    bounty_list = session.get('bounty_data')
-    
-    if not bounty_list or not isinstance(bounty_list, list):
-        flash("Expired or invalid bounty.")
-        return redirect(url_for('dashboard'))
-        
-    correct_count = 0
-    total_questions = len(bounty_list)
-    
-    for i, question_data in enumerate(bounty_list):
-        user_answer = request.form.get(f'answer_{i}')
-        if user_answer is not None:
-             if int(user_answer) == int(question_data.get('answer', -1)):
-                 correct_count += 1
-    
+    # Legacy form-based submission (Keep if needed, or redirect to game)
+    return redirect(url_for('play_game'))
+
+@app.route('/play_game')
+@login_required
+def play_game():
     student = Student.get_by_id(session['user_id'])
     
-    # Update Logic
+    # Ensure generated bounty exists
+    bounty = session.get('bounty_data')
+    if not bounty:
+        flash("No active bounty found. Please refresh dashboard.")
+        return redirect(url_for('dashboard'))
+        
+    return render_template('game.html', bounty=bounty, student=student)
+
+@app.route('/solve_game_bounty', methods=['POST'])
+@login_required
+def solve_game_bounty():
+    total_xp = int(request.form.get('total_xp', 0))
+    student = Student.get_by_id(session['user_id'])
+    
+    # Security: Cap max XP to avoid cheating via direct POST
+    if total_xp > 50: total_xp = 50 
+    
     updates = {}
     updates['last_bounty_date'] = datetime.utcnow()
+    updates['xp'] = student.xp + total_xp
     
-    xp_gained = correct_count * 10 # 10 XP per question
-    
-    if xp_gained > 0:
-        updates['xp'] = student.xp + xp_gained
-        flash(f"You answered {correct_count}/{total_questions} correctly! +{xp_gained} XP Added.")
+    if total_xp > 0:
+        flash(f"Game Complete! You earned +{total_xp} XP.")
     else:
-        flash(f"You answered {correct_count}/{total_questions} correctly. No XP today, try again tomorrow!")
+        flash("Game Complete. Better aim next time!")
         
     student.update(updates)
-    session.pop('bounty_data', None) # Clear from session
-        
+    session.pop('bounty_data', None) # Clear bounty
+    
     return redirect(url_for('dashboard'))
 
 @app.route('/upload_resume', methods=['POST'])
