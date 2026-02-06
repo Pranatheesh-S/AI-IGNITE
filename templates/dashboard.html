@@ -67,10 +67,10 @@
             <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                 <select id="roleSelect"
                     style="max-width: 200px; padding: 0.5rem; background: rgba(15,23,42,0.5); color: white; border: 1px solid var(--glass-border); border-radius: 8px;">
-                    <option value="all">All Industries</option>
-                    <option value="sde">Software Development Engineer</option>
-                    <option value="fsd">Full Stack Developer</option>
-                    <option value="ai">AI/ML Engineer</option>
+                    <option value="all">General Overview</option>
+                    {% for role in scores.roles[:3] %}
+                    <option value="{{ role.role }}">{{ role.role }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div style="position: relative; height: 300px; width: 100%;">
@@ -268,13 +268,34 @@
     // --- Learning Curve Chart ---
     const ctx = document.getElementById('learningCurveChart').getContext('2d');
 
-    // Mock Data for different roles
+    // Generate Dynamic Data for roles
     const curveData = {
         'all': [10, 20, 35, 50, 70, 80, 88, 93],
-        'sde': [10, 25, 40, 55, 78, 85, 92, 95], // Steady
-        'fsd': [5, 15, 30, 60, 80, 85, 90, 95],  // Steep middle
-        'ai': [5, 10, 15, 25, 45, 70, 85, 92]   // Exponential end
     };
+
+    // Populate curveData for each detected role
+    roleScores.forEach((role, index) => {
+        const finalScore = role.score;
+        const trend = [];
+        // Simulate an 8-week curve
+        for (let i = 1; i <= 8; i++) {
+            // Apply varied growth curves based on index to make them look distinct
+            let progress = i / 8;
+            let factor;
+
+            if (index === 0) factor = Math.pow(progress, 0.7); // Fast start
+            else if (index === 1) factor = Math.pow(progress, 1.2); // Linear-ish
+            else factor = Math.pow(progress, 2.0); // Slow start, exponential end
+
+            let val = Math.round(finalScore * factor);
+            // Ensure strictly increasing (mostly)
+            if (val < 5) val = 5 + Math.random() * 5;
+            trend.push(val);
+        }
+        // Force last point to match actual score
+        trend[7] = finalScore;
+        curveData[role.role] = trend;
+    });
 
     const chart = new Chart(ctx, {
         type: 'line',
@@ -338,17 +359,22 @@
 
         // Optional: Update Color based on role
         let color = '#3b82f6'; // Default Blue
-        if (selectedRole === 'fsd') color = '#10b981'; // Green
-        if (selectedRole === 'ai') color = '#ec4899'; // Pink
+
+        if (selectedRole === 'all') {
+            color = '#3b82f6';
+        } else {
+            // Find index in roleScores to assign consistent colors
+            const roleIndex = roleScores.findIndex(r => r.role === selectedRole);
+            if (roleIndex === 0) color = '#3b82f6';      // Blue
+            else if (roleIndex === 1) color = '#10b981'; // Green
+            else if (roleIndex === 2) color = '#ec4899'; // Pink
+            else color = '#8b5cf6'; // Purple (fallback)
+        }
 
         chart.data.datasets[0].borderColor = color;
         chart.data.datasets[0].pointBackgroundColor = color;
         chart.data.datasets[0].pointHoverBorderColor = color;
-        chart.data.datasets[0].backgroundColor = color.replace(')', ', 0.1)').replace('rgb', 'rgba');
-        if (color.startsWith('#')) {
-            // Simple hex to rgba approximation for simplicity
-            chart.data.datasets[0].backgroundColor = hexToRgba(color, 0.1);
-        }
+        chart.data.datasets[0].backgroundColor = hexToRgba(color, 0.1);
 
         chart.update();
     });

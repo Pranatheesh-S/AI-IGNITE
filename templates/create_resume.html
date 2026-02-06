@@ -26,15 +26,24 @@
                 <label for="degree">Degree</label>
                 <select id="degree" name="degree"
                     style="width: 100%; padding: 0.8rem 1rem; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-primary); font-family: 'Outfit', sans-serif; font-size: 1rem;">
-                    <option value="" disabled selected>Select your degree</option>
-                    <option value="B.E.">B.E. (Bachelor of Engineering)</option>
-                    <option value="B.Tech">B.Tech (Bachelor of Technology)</option>
-                    <option value="B.Sc">B.Sc (Bachelor of Science)</option>
-                    <option value="M.E.">M.E. (Master of Engineering)</option>
-                    <option value="M.Tech">M.Tech (Master of Technology)</option>
-                    <option value="M.Sc">M.Sc (Master of Science)</option>
-                    <option value="BCA">BCA (Bachelor of Computer Applications)</option>
-                    <option value="MCA">MCA (Master of Computer Applications)</option>
+                    <option value="" disabled {% if not resume_data.get('degree') %}selected{% endif %}>Select your
+                        degree</option>
+                    <option value="B.E." {% if resume_data.get('degree')=='B.E.' %}selected{% endif %}>B.E. (Bachelor of
+                        Engineering)</option>
+                    <option value="B.Tech" {% if resume_data.get('degree')=='B.Tech' %}selected{% endif %}>B.Tech
+                        (Bachelor of Technology)</option>
+                    <option value="B.Sc" {% if resume_data.get('degree')=='B.Sc' %}selected{% endif %}>B.Sc (Bachelor of
+                        Science)</option>
+                    <option value="M.E." {% if resume_data.get('degree')=='M.E.' %}selected{% endif %}>M.E. (Master of
+                        Engineering)</option>
+                    <option value="M.Tech" {% if resume_data.get('degree')=='M.Tech' %}selected{% endif %}>M.Tech
+                        (Master of Technology)</option>
+                    <option value="M.Sc" {% if resume_data.get('degree')=='M.Sc' %}selected{% endif %}>M.Sc (Master of
+                        Science)</option>
+                    <option value="BCA" {% if resume_data.get('degree')=='BCA' %}selected{% endif %}>BCA (Bachelor of
+                        Computer Applications)</option>
+                    <option value="MCA" {% if resume_data.get('degree')=='MCA' %}selected{% endif %}>MCA (Master of
+                        Computer Applications)</option>
                 </select>
                 <style>
                     /* Ensure dropdown options are dark */
