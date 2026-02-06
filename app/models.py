@@ -65,6 +65,7 @@ class Student:
         self.roadmap = data.get('roadmap', [])
         self.market_analysis = data.get('market_analysis', {})
         self.verified_skills = data.get('verified_skills', []) # Replaces Skills Relationship
+        self.resume_profile = data.get('resume_profile', {}) # Stores structured resume details
 
     @staticmethod
     def create(name, email, password_hash, department, enrollment_year):
@@ -81,6 +82,7 @@ class Student:
             'verified_skills': [],
             'top_roles': [],
             'roadmap': [],
+            'resume_profile': {},
             'market_analysis': None
         }
         # Add to Firestore

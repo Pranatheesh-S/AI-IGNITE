@@ -795,16 +795,32 @@ def leetcode_analysis():
         stats_text += f"{item['topic']} | {item['solved']} | {item['category']}\n"
     
     prompt = (
-        "Analyze the following LeetCode topic statistics for a student.\n\n"
-        f"{stats_text}\n\n"
-        "Based *strictly* on these stats, provide a personalized study strategy in strictly valid JSON format with three keys:\n"
-        "1. \"strengths\": Identify what they are good at and suggest one advanced concept. (Use HTML <ul><li> tags)\n"
-        "2. \"focus\": Identify the most critical area they are neglecting and explain why. (Use HTML <p> or <ul> tags)\n"
-        "3. \"plan\": Suggest 3 specific types of problems they should solve next. (Use HTML <ul><li> tags)\n\n"
-        "Example Output:\n"
-        "{\"strengths\": \"<ul><li>...</li></ul>\", \"focus\": \"<p>...</p>\", \"plan\": \"<ul><li>...</li></ul>\"}\n"
-        "Do NOT return markdown code blocks. Return ONLY the raw JSON string."
-    )
+    "You are a Senior Technical Interview Coach. Your goal is to analyze LeetCode topic "
+    "statistics and output a data-driven JSON study plan.\n\n"
+    
+    "### INPUT DATA:\n"
+    f"{stats_text}\n\n"
+    
+    "### CONSTRAINTS:\n"
+    "- Output must be a SINGLE, valid JSON string.\n"
+    "- NO markdown blocks, backticks (```), or extra text. Return ONLY the JSON.\n"
+    "- Use HTML tags (<ul>, <li>, <p>) for internal formatting.\n"
+    "- For the 'plan' section, you MUST provide exactly 3 problems. Each <li> must include "
+    "a clickable LeetCode URL using the format: [https://leetcode.com/problems/](https://leetcode.com/problems/)[problem-slug]/\n\n"
+    
+    "### REQUIRED JSON STRUCTURE:\n"
+    "{\n"
+    '  "strengths": "<ul><li>[Metric-based strength]</li><li>[Advanced concept to study]</li></ul>",\n'
+    '  "focus": "<p>[Identify a critical weak area based on high submission-to-acceptance ratios or low problem count and explain why it matters for interviews.]</p>",\n'
+    '  "plan": "<ul><li>[Problem Name]: <a href=\'URL\'>URL</a></li><li>[Problem Name]: <a href=\'URL\'>URL</a></li><li>[Problem Name]: <a href=\'URL\'>URL</a></li></ul>"\n'
+    "}\n\n"
+    
+    "### ANALYSIS LOGIC:\n"
+    "1. Sort topics by completion rate and frequency.\n"
+    "2. Identify the 'bottleneck' topic (e.g., high attempts but no success).\n"
+    "3. Select 3 highly-rated problems from that bottleneck topic that are common in FAANG interviews.\n\n"
+    "Return only the raw JSON."
+)
     
     response_text = ask_llama("", prompt)
     
@@ -841,6 +857,13 @@ def leetcode_analysis():
 # @login_required 
 def resume_builder():
     resume_data = session.get('resume_data', {})
+
+    # Fetch from Database if logged in
+    if 'user_id' in session:
+        student = Student.get_by_id(session['user_id'])
+        if student and student.resume_profile:
+            resume_data = student.resume_profile
+
     return render_template('resume_builder.html', resume_data=resume_data)
 
 @app.route('/create-resume')
@@ -848,6 +871,14 @@ def resume_builder():
 def create_resume():
     """Separate route for the specific 'Create Your Resume' page."""
     resume_data = session.get('resume_data', {})
+
+    # Fetch from Database if logged in
+    if 'user_id' in session:
+        student = Student.get_by_id(session['user_id'])
+        if student and student.resume_profile:
+            # Load saved profile from DB
+            resume_data = student.resume_profile
+
     return render_template('create_resume.html', resume_data=resume_data, hide_sidebar=True)
 
 @app.route('/generate_resume', methods=['POST'])
@@ -926,6 +957,14 @@ def generate_resume():
         'projects': projects,
         'achievements': achievements_str
     }
+
+    # --- SAVE TO DB (PERSISTENCE) ---
+    if 'user_id' in session:
+        student = Student.get_by_id(session['user_id'])
+        if student:
+            # Save the raw form data for reloading later
+            student.update({'resume_profile': session['resume_data']})
+            print("✅ Resume Profile Details Saved to Firebase.")
 
     # --- ONE-TIME CAREER PATHWAY DERIVATION (FIREBASE) ---
     try:
