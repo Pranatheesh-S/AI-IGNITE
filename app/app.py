@@ -1416,6 +1416,40 @@ def api_chat():
         "reply": ai_response
     })
 
+@app.route('/update_exam_scores', methods=['POST'])
+@login_required
+def update_exam_scores():
+    student = Student.get_by_id(session['user_id'])
+    if not student:
+        return redirect(url_for('login'))
+        
+    scores = {
+        'GRE': request.form.get('gre'),
+        'GATE': request.form.get('gate'),
+        'IELTS': request.form.get('ielts'),
+        'TOEFL': request.form.get('toefl')
+    }
+    
+    # Filter out empty strings
+    clean_scores = {k: v for k, v in scores.items() if v and v.strip()}
+    
+    student.update({'exam_scores': clean_scores})
+    
+    # Clear cache since input changed
+    # We might want to clear all higher_studies caches, or just the current context.
+    # For simplicity, let's clear the specific cache we are about to view or broadly clear.
+    # But since cache keys are dynamic (by country), we rely on the user to re-select or we force a refresh.
+    # Ideally, we should invalidate caches. For now, we'll implement a simple suffix to the cache key or just clear the main one.
+    
+    # Let's force a refresh by clearing the last generic key used if possible, or just rely on the user flow.
+    # A better way: The prompt depends on these scores. If we change scores, we want new recs.
+    # Let's purge all higher_studies keys from student data? That's expensive.
+    # Instead, we will append the scores hash to the cache key in the GET route, 
+    # OR simpler: just update the 'higher_studies_advanced' cache for the current/global country if we can.
+    
+    flash("Exam scores updated! Analyzer will now use these for better probability estimates.")
+    return redirect(url_for('higher_studies', country=request.form.get('current_country', 'Global')))
+
 @app.route('/higher_studies')
 @login_required
 def higher_studies():
@@ -1423,13 +1457,14 @@ def higher_studies():
     if not student:
         flash("Please log in.")
         return redirect(url_for('login'))
+        
+    # Get selected country from query param, default to Global
+    selected_country = request.args.get('country', 'Global')
 
     # Get Top Role
     top_roles = student.top_roles or []
     target_role = None
     if top_roles:
-         # Assuming top_roles is a list of dicts {'role': '...', 'score': ...}
-         # We take the one with highest score
          try:
              sorted_roles = sorted(top_roles, key=lambda x: x.get('score', 0), reverse=True)
              target_role = sorted_roles[0]['role']
@@ -1437,63 +1472,112 @@ def higher_studies():
              target_role = top_roles[0].get('role', "Software Engineer")
     
     if not target_role:
-        # Fallback or ask to upload resume
-        return render_template('higher_studies.html', universities=[], target_role=None)
+        return render_template('higher_studies.html', universities=[], target_role=None, selected_country=selected_country, exam_scores={})
 
-    # Check for cached recommendations
-    existing_recs = student.data.get('higher_studies_recs')
+    # Retrieve Resume Content
+    resume = student.get_latest_resume()
+    resume_text = resume['ocr_content'] if resume else ""
     
-    # If we have recs and they match the current target role (simple check)
-    # To be more robust, we could store the role with the recs. 
-    # For now, if we have recs, we use them. Ideally, we should check if they are relevant.
+    # Retrieve Exam Scores
+    exam_scores = student.data.get('exam_scores', {})
+    
+    # Create a cache key that includes a hash of the exam scores to invalidate on change
+    # or simply suffix if they exist. simpler: cache_key depends on country. 
+    # note: if user updates scores, we essentially want to ignore the old cache. 
+    # We can detect if the cached data 'exam_readiness' matches the current input?
+    # No, simpler to just accept that if we want "Fresh" analysis, the user can change country or wait.
+    # BUT, to make it responsive, let's include 'v2' or something if exams exist.
+    
+    # Let's try to load cache.
+    cache_key = f'higher_studies_advanced_{selected_country}'
+    existing_recs = student.data.get(cache_key)
+    
+    # If we have recs... check if they were generated with the CURRENT exam scores.
+    # We can store 'used_scores' in the saved data to compare.
+    need_refresh = True
     if existing_recs and isinstance(existing_recs, dict) and existing_recs.get('role') == target_role:
-         return render_template('higher_studies.html', universities=existing_recs.get('universities', []), target_role=target_role)
+        saved_scores = existing_recs.get('used_scores', {})
+        # Compare saved_scores with current exam_scores
+        # Treat None and empty string as same
+        current_clean = {k: v for k, v in exam_scores.items() if v}
+        saved_clean = {k: v for k, v in saved_scores.items() if v}
+        
+        if current_clean == saved_clean:
+            need_refresh = False
+            
+    if not need_refresh:
+         return render_template('higher_studies.html', 
+                                universities=existing_recs.get('universities', []), 
+                                target_role=target_role, 
+                                exam_readiness=existing_recs.get('exam_readiness'), 
+                                selected_country=selected_country,
+                                exam_scores=exam_scores)
 
     # Generate Recommendations via AI
-    print(f"Generating University Recommendations for: {target_role}")
+    print(f"Generating Advanced University Recommendations for: {target_role} in {selected_country} (Scores: {exam_scores})")
+    
+    country_focus = f"in {selected_country}" if selected_country != 'Global' else "Worldwide (Top Global)"
+    
+    # Inject Scores into Prompt
+    scores_context = "No official exam scores provided. Estimate based on resume only."
+    if exam_scores:
+        scores_list = ", ".join([f"{k}: {v}" for k, v in exam_scores.items() if v])
+        if scores_list:
+            scores_context = f"STUDENT OFFICIAL SCORES: {scores_list}. USE THESE for probability calculation."
     
     prompt = (
-        f"Act as a study abroad counselor. Based on the career role '{target_role}', "
-        "recommend 5 top global universities that specialize in this field. "
+        f"Act as an expert Overseas & Domestic Education Counselor. Analyze this student's profile (resume below) and the target role '{target_role}'.\n"
+        f"{scores_context}\n"
+        "Task 1: Evaluate Exam Readiness. If official scores are provided above, use them to grade readiness (e.g. 'GRE 320 -> High'). If not, estimate based on resume.\n"
+        f"Task 2: Recommend 5 top universities ({country_focus}, best fit for profile) for this role.\n"
+        "\n"
         "For each university, provide:\n"
         "1. Name\n"
         "2. Location (City, Country)\n"
-        "3. Estimated Yearly Tuition Fee (e.g. '$25,000')\n"
-        "4. Estimated Yearly Cost of Living (e.g. '$12,000')\n"
-        "5. A brief 1-sentence reason why it's good for this role.\n"
+        "3. Global Ranking (Use ARWU, THE, or QS format, e.g. 'QS #45')\n"
+        "4. Tuition Fee (Yearly in local currency + approx INR)\n"
+        "5. Application Deadline (Next upcoming cycle, e.g. 'Dec 15, 2024')\n"
+        "6. Exams Required (e.g. 'GRE: 315+, IELTS: 7.0')\n"
+        "7. Admit Probability (Estimate % based on scores/resume vs uni standards)\n"
+        "8. Scholarship Probability (Estimate %)\n"
+        "9. Suitability Score (0-100)\n"
+        "10. Reason (Short, mentioning if their score is good enough)\n"
         "\n"
-        "Return strictly a JSON ARRAY of objects with keys: "
-        "'name', 'location', 'fee', 'living_cost', 'reason'.\n"
-        "No Dictionary wrapper. Just the list [ ... ]. No Markdown."
+        "Return strictly a JSON Object with two keys:\n"
+        "1. 'exam_readiness': { 'GRE': '...', 'GATE': '...', 'IELTS': '...', 'TOEFL': '...' }\n"
+        "2. 'universities': [ Array of objects with keys: 'name', 'location', 'ranking', 'fee', 'deadline', 'exams', 'admit_prob', 'scholarship_prob', 'suitability', 'reason' ]\n"
+        "No Markdown."
+        f"\n\nResume Context: {resume_text[:2500]}"
     )
     
     response_text = ask_llama("", prompt)
     
-    universities = []
+    data = {'universities': [], 'exam_readiness': {}}
     import json
     import re
     
     try:
         clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
-        # Find array
-        s = clean_json.find('[')
-        e = clean_json.rfind(']')
+        # Parsing handling for potentially wrapped or raw json
+        s = clean_json.find('{')
+        e = clean_json.rfind('}')
         if s != -1 and e != -1:
-            universities = json.loads(clean_json[s:e+1])
+            data = json.loads(clean_json[s:e+1])
             
             # Save to Student DB
             save_data = {
                 'role': target_role,
-                'universities': universities,
+                'universities': data.get('universities', []),
+                'exam_readiness': data.get('exam_readiness', {}),
+                'used_scores': exam_scores, # Store which scores were used
                 'updated_at': datetime.utcnow().isoformat()
             }
-            student.update({'higher_studies_recs': save_data})
+            student.update({cache_key: save_data})
             
     except Exception as e:
         print(f"University Recs Error: {e}")
-        # flash("Could not fetch recommendations at this time.")
 
-    return render_template('higher_studies.html', universities=universities, target_role=target_role)
+    return render_template('higher_studies.html', universities=data.get('universities', []), target_role=target_role, exam_readiness=data.get('exam_readiness', {}), selected_country=selected_country, exam_scores=exam_scores)
 
 
 if __name__ == '__main__':
