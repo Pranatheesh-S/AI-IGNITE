@@ -1416,5 +1416,85 @@ def api_chat():
         "reply": ai_response
     })
 
+@app.route('/higher_studies')
+@login_required
+def higher_studies():
+    student = Student.get_by_id(session['user_id'])
+    if not student:
+        flash("Please log in.")
+        return redirect(url_for('login'))
+
+    # Get Top Role
+    top_roles = student.top_roles or []
+    target_role = None
+    if top_roles:
+         # Assuming top_roles is a list of dicts {'role': '...', 'score': ...}
+         # We take the one with highest score
+         try:
+             sorted_roles = sorted(top_roles, key=lambda x: x.get('score', 0), reverse=True)
+             target_role = sorted_roles[0]['role']
+         except:
+             target_role = top_roles[0].get('role', "Software Engineer")
+    
+    if not target_role:
+        # Fallback or ask to upload resume
+        return render_template('higher_studies.html', universities=[], target_role=None)
+
+    # Check for cached recommendations
+    existing_recs = student.data.get('higher_studies_recs')
+    
+    # If we have recs and they match the current target role (simple check)
+    # To be more robust, we could store the role with the recs. 
+    # For now, if we have recs, we use them. Ideally, we should check if they are relevant.
+    if existing_recs and isinstance(existing_recs, dict) and existing_recs.get('role') == target_role:
+         return render_template('higher_studies.html', universities=existing_recs.get('universities', []), target_role=target_role)
+
+    # Generate Recommendations via AI
+    print(f"Generating University Recommendations for: {target_role}")
+    
+    prompt = (
+        f"Act as a study abroad counselor. Based on the career role '{target_role}', "
+        "recommend 5 top global universities that specialize in this field. "
+        "For each university, provide:\n"
+        "1. Name\n"
+        "2. Location (City, Country)\n"
+        "3. Estimated Yearly Tuition Fee (e.g. '$25,000')\n"
+        "4. Estimated Yearly Cost of Living (e.g. '$12,000')\n"
+        "5. A brief 1-sentence reason why it's good for this role.\n"
+        "\n"
+        "Return strictly a JSON ARRAY of objects with keys: "
+        "'name', 'location', 'fee', 'living_cost', 'reason'.\n"
+        "No Dictionary wrapper. Just the list [ ... ]. No Markdown."
+    )
+    
+    response_text = ask_llama("", prompt)
+    
+    universities = []
+    import json
+    import re
+    
+    try:
+        clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+        # Find array
+        s = clean_json.find('[')
+        e = clean_json.rfind(']')
+        if s != -1 and e != -1:
+            universities = json.loads(clean_json[s:e+1])
+            
+            # Save to Student DB
+            save_data = {
+                'role': target_role,
+                'universities': universities,
+                'updated_at': datetime.utcnow().isoformat()
+            }
+            student.update({'higher_studies_recs': save_data})
+            
+    except Exception as e:
+        print(f"University Recs Error: {e}")
+        # flash("Could not fetch recommendations at this time.")
+
+    return render_template('higher_studies.html', universities=universities, target_role=target_role)
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
