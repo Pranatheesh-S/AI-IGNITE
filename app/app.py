@@ -16,7 +16,7 @@ import google.generativeai as genai
 
 # --- DB Import ---
 # Importing the new Firestore 'Student' class from your models.py
-from models import Student
+from models import Student, db
 
 # -------------------------------
 # LLaMA / OpenRouter Config
@@ -1099,16 +1099,21 @@ def market():
     resume = student.get_latest_resume()
     resume_text = resume['ocr_content'] if resume else "Student with basic Computer Science skills."
 
-    print("Generating Market Analysis...")
+    # Get department/field context
+    department = student.department or "Technology"
+    
+    print(f"Generating Market Analysis for field: {department}...")
     prompt = (
-        "Analyze the current tech job market and this candidate's resume.\n"
-        "1. Identify 3 High Paying 'Booming' Roles. For each, provide Avg Package (e.g. '$150k') and 3 specific skills they lack.\n"
-        "2. Identify 2 Target Roles suitable for them. Estimate progress (0-100%) and provide strategic advice + 2 action items.\n"
+        f"Analyze the current job market specifically for a student in the '{department}' field and this candidate's resume.\n"
+        f"1. Identify 3 High Paying 'Booming' Roles within the {department} industry (or related cross-disciplinary fields). "
+        "Do NOT suggest generic Software/IT roles unless the student is in CS/IT. "
+        "For each, provide Avg Package (e.g. '$150k') and 3 specific skills they lack.\n"
+        "2. Identify 2 Target Roles suitable for them based on their specific background. Estimate progress (0-100%) and provide strategic advice + 2 action items.\n"
         "Return strict JSON with keys: 'market_roles' and 'optimization'.\n"
         "Example:\n"
         "{\n"
-        "  \"market_roles\": [{\"role\": \"AI Architect\", \"package\": \"$160k\", \"skills\": [\"LLMs\", \"System Design\"]}],\n"
-        "  \"optimization\": [{\"role\": \"Backend Dev\", \"progress\": 60, \"advice\": \"Good Python, weak DB.\", \"actions\": [\"Learn Redis\", \"Build API\"]}]\n"
+        "  \"market_roles\": [{\"role\": \"VLSI Engineer\", \"package\": \"$160k\", \"skills\": [\"Verilog\", \"FPGA\"]}],\n"
+        "  \"optimization\": [{\"role\": \"Embedded Systems Eng\", \"progress\": 60, \"advice\": \"Good C++, weak RTOS.\", \"actions\": [\"Learn RTOS\", \"Build IoT Project\"]}]\n"
         "}\n\n"
         f"Resume Content: {resume_text[:2000]}"
     )
@@ -1536,16 +1541,15 @@ def higher_studies():
         "2. Location (City, Country)\n"
         "3. Global Ranking (Use ARWU, THE, or QS format, e.g. 'QS #45')\n"
         "4. Tuition Fee (Yearly in local currency + approx INR)\n"
-        "5. Application Deadline (Next upcoming cycle, e.g. 'Dec 15, 2024')\n"
-        "6. Exams Required (e.g. 'GRE: 315+, IELTS: 7.0')\n"
-        "7. Admit Probability (Estimate % based on scores/resume vs uni standards)\n"
-        "8. Scholarship Probability (Estimate %)\n"
-        "9. Suitability Score (0-100)\n"
-        "10. Reason (Short, mentioning if their score is good enough)\n"
+        "5. Exams Required (e.g. 'GRE: 315+, IELTS: 7.0')\n"
+        "6. Admit Probability (Estimate % based on scores/resume vs uni standards)\n"
+        "7. Scholarship Probability (Estimate %)\n"
+        "8. Suitability Score (0-100)\n"
+        "9. Reason (Short, mentioning if their score is good enough)\n"
         "\n"
         "Return strictly a JSON Object with two keys:\n"
         "1. 'exam_readiness': { 'GRE': '...', 'GATE': '...', 'IELTS': '...', 'TOEFL': '...' }\n"
-        "2. 'universities': [ Array of objects with keys: 'name', 'location', 'ranking', 'fee', 'deadline', 'exams', 'admit_prob', 'scholarship_prob', 'suitability', 'reason' ]\n"
+        "2. 'universities': [ Array of objects with keys: 'name', 'location', 'ranking', 'fee', 'exams', 'admit_prob', 'scholarship_prob', 'suitability', 'reason' ]\n"
         "No Markdown."
         f"\n\nResume Context: {resume_text[:2500]}"
     )
@@ -1579,6 +1583,381 @@ def higher_studies():
 
     return render_template('higher_studies.html', universities=data.get('universities', []), target_role=target_role, exam_readiness=data.get('exam_readiness', {}), selected_country=selected_country, exam_scores=exam_scores)
 
+# --- Internship Section ---
+
+INTERNSHIP_DATA = [
+    {
+        "title": "Python Developer Intern",
+        "company": "Infrabyte Consulting",
+        "link": "https://www.infrabyteconsulting.com/jobs",
+        "type": "Internship",
+        "location": "Remote",
+        "stipend": "₹15,700 / month",
+        "duration": "2–3 months",
+        "tags": ["Python", "Remote", "Backend", "Flask"],
+        "description": "Assist in application development and automation projects. Work with Flask/Django, SQL, Git."
+    },
+    {
+        "title": "Machine Learning Intern",
+        "company": "Innovexis",
+        "link": "https://careerspage.io/innovexis/machine-learning-intern-in121?src=37",
+        "type": "Internship",
+        "location": "Remote",
+        "stipend": "₹20,000 - ₹25,000 / month",
+        "duration": "N/A",
+        "tags": ["Machine Learning", "AI", "Remote", "Data Science"],
+        "description": "Build, train, and evaluate ML models. Work in Education Management industry."
+    },
+    {
+        "title": "Web Developer Intern",
+        "company": "Inficore Soft",
+        "link": "https://inficoresoft.com/jobs",
+        "type": "Internship",
+        "location": "Remote",
+        "stipend": "₹14,500 / month",
+        "duration": "1-3 months",
+        "tags": ["Web Development", "Remote", "Frontend"],
+        "description": "Full-time internship for web development."
+    },
+    {
+        "title": "Cyber Security Intern",
+        "company": "Various",
+        "link": "https://docs.google.com/forms/d/1pk9ZN-620VbRliDY7YeVKs4JA149rmVnM96ki354Z2I/viewform?edit_requested=true",
+        "type": "Internship",
+        "location": "Remote",
+        "stipend": "Unpaid",
+        "duration": "Flexible",
+        "tags": ["Cyber Security", "Remote"],
+        "description": "Virtual/Remote internship opportunity."
+    },
+    {
+        "title": "GenAI & Agent Research Scientist",
+        "company": "Sententia Research",
+        "link": "https://www.sourcingxpress.com/jobs/TEz4O1B70rZpoY?utm_source=linkedin&utm_medium=job_board&utm_campaign=careers_2026",
+        "type": "Job",
+        "location": "Unknown",
+        "stipend": "₹ 1-2 Lacs PA",
+        "duration": "Full Time",
+        "tags": ["GenAI", "Data Science", "Startup", "AI"],
+        "description": "Developing intelligent systems using AI agents and generative AI."
+    },
+    {
+        "title": "Embedded Controller Designer",
+        "company": "Leading Automotive Client",
+        "link": "https://www.linkedin.com/jobs/view/4367206528/",
+        "type": "Job",
+        "location": "India",
+        "stipend": "Competitive",
+        "duration": "Full Time",
+        "tags": ["Embedded Systems", "Electronics", "Automotive"],
+        "description": "Hardware design for controller and power PCBs, motor control systems."
+    },
+    {
+        "title": "IOT Product Development Engineer",
+        "company": "BONbLOC TECHNOLOGIES",
+        "link": "https://jobs.best-jobs-online.com/c/job/380c7973696605bc379b0999e3b27109?q=iot&l=chennai%2C+state+of+tamil+nadu&jlc=k8J83yAJMG5gM062b0KJMBVWXOvm&jt=IOT+Product+Development+Engineer&c=BONbLOC",
+        "type": "Job",
+        "location": "Chennai",
+        "stipend": "Competitive",
+        "duration": "Full Time",
+        "tags": ["IoT", "Python", "Embedded", "Senior"],
+        "description": "End-to-end ownership of IoT products—from prototyping to deployment."
+    },
+    {
+        "title": "VLSI Design Internship",
+        "company": "Maven Silicon",
+        "link": "https://www.maven-silicon.com/vlsi-design-internship/",
+        "type": "Internship",
+        "location": "Bengaluru",
+        "stipend": "Training",
+        "duration": "N/A",
+        "tags": ["VLSI", "Electronics", "Chip Design"],
+        "description": "For Pre-final and final year electronics/electrical engineering students."
+    },
+    {
+        "title": "Robotics Trainer/Intern",
+        "company": "EdTech Client",
+        "link": "https://www.linkedin.com/jobs/view/4356454963/",
+        "type": "Job",
+        "location": "Remote",
+        "stipend": "Salary",
+        "duration": "Full Time (Night Shift)",
+        "tags": ["Robotics", "Python", "Remote", "Teaching"],
+        "description": "Robotics, Python, PCB Design. Delivering sessions to students."
+    },
+    {
+        "title": "Electrical/Electronics Eng. Intern",
+        "company": "Speedways Electric",
+        "link": "https://secure.indeed.com/auth?hl=en_IN&co=IN&continue=https%3A%2F%2Fin.indeed.com%2Fthirdpartysignin%3Fjk%3Dba4da650bf1336c1",
+        "type": "Internship",
+        "location": "Jalandhar",
+        "stipend": "Unpaid/Stipend",
+        "duration": "Internship",
+        "tags": ["Electrical", "Electronics", "EV", "Internship"],
+        "description": "Assist in development and testing of electrical systems for electric vehicles."
+    },
+    {
+        "title": "PCB Design Engineer",
+        "company": "Robotics Firm",
+        "link": "https://www.linkedin.com/jobs/view/4355935191/",
+        "type": "Internship/Job",
+        "location": "Pune",
+        "stipend": "Salary",
+        "duration": "Full Time",
+        "tags": ["PCB Design", "Robotics", "IoT"],
+        "description": "Design and refine multi-layer PCB layouts, create footprints."
+    },
+    {
+        "title": "Senior Mechatronics Engineer",
+        "company": "Industrial Automation Firm",
+        "link": "https://www.linkedin.com/jobs/view/4367555617/",
+        "type": "Job",
+        "location": "Bengaluru",
+        "stipend": "₹12-18 LPA",
+        "duration": "Full Time",
+        "tags": ["Mechatronics", "Automation", "Senior"],
+        "description": "Mechanical + Electrical Design. Industrial Automation / Machine Vision."
+    },
+    {
+        "title": "Java Backend Developer",
+        "company": "Tech Firm",
+        "link": "https://www.linkedin.com/jobs/search/?currentJobId=4369508760",
+        "type": "Job",
+        "location": "Unknown",
+        "stipend": "₹14-18 LPA",
+        "duration": "Full Time",
+        "tags": ["Java", "Backend", "Spring Boot"],
+        "description": "Design and develop server-side applications using Java."
+    },
+    {
+        "title": "SQL Developer Intern",
+        "company": "Infrabyte Consulting",
+        "link": "https://www.infrabyteconsulting.com/jobs",
+        "type": "Internship",
+        "location": "Remote",
+        "stipend": "₹15,700 / month",
+        "duration": "2–3 months",
+        "tags": ["SQL", "Database", "Remote"],
+        "description": "Support database management and query optimization."
+    }
+]
+
+def seed_internships():
+    """Seeds the internships collection if empty."""
+    try:
+        internships_ref = db.collection('internships')
+        # Check if already seeded (limit 1 to save reads)
+        docs = list(internships_ref.limit(1).stream())
+        if not docs:
+            print("Seeding Internships...")
+            batch = db.batch()
+            for item in INTERNSHIP_DATA:
+                doc_ref = internships_ref.document()
+                batch.set(doc_ref, item)
+            batch.commit()
+            print("Internships Seeded Successfully.")
+    except Exception as e:
+        print(f"Error seeding internships: {e}")
+
+@app.route('/internships')
+def internships():
+    seed_internships() # Ensure data exists
+    
+    try:
+        internships_ref = db.collection('internships')
+        docs = internships_ref.stream()
+        
+        all_internships = []
+        all_tags = set()
+        
+        for doc in docs:
+            data = doc.to_dict()
+            all_internships.append(data)
+            if 'tags' in data:
+                for tag in data['tags']:
+                    all_tags.add(tag)
+        
+        # Sort by title for consistency
+        all_internships.sort(key=lambda x: x.get('title', ''))
+        
+        sorted_tags = sorted(list(all_tags))
+        
+        return render_template('internships.html', internships=all_internships, tags=sorted_tags)
+    except Exception as e:
+        print(f"Error fetching internships: {e}")
+        return render_template('internships.html', internships=[], tags=[])
+
+
+@app.route('/quiz/<role_name>')
+@login_required
+def take_quiz(role_name):
+    # Prompt AI to generate questions
+    prompt = (
+        f"Create a technical skill assessment quiz for the role: '{role_name}'.\n"
+        "Generate 10 Multiple Choice Questions (MCQs) testing key skills required for this role.\n"
+        "Format strictly as a JSON object with this structure:\n"
+        "{\n"
+        "  \"questions\": [\n"
+        "    {\n"
+        "      \"id\": 1,\n"
+        "      \"text\": \"Question text here?\",\n"
+        "      \"options\": [\"Option A\", \"Option B\", \"Option C\", \"Option D\"],\n"
+        "      \"correct_index\": 0\n"
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        "No Markdown. Return only valid JSON. Do not use trailing commas. Do NOT use 'All of the above' or 'None of the above' options."
+    )
+    
+    response_text = ask_llama("", prompt)
+    
+    questions = []
+    try:
+        clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+        data = json.loads(clean_json)
+        questions = data.get('questions', [])
+    except Exception as e:
+        print(f"Quiz Gen Error: {e}")
+        flash("Could not generate quiz. Please try again.")
+        return redirect(url_for('market'))
+        
+    return render_template('quiz.html', role_name=role_name, questions=questions)
+
+@app.route('/quiz/submit', methods=['POST'])
+@login_required
+def submit_quiz():
+    role_name = request.form.get('role_name')
+    # Reconstruct user answers and correct answers
+    # We need the original questions to evaluate properly or typically we store them in session.
+    # For a robust solution without DB persistence for quizzes, we can embed the full question data 
+    # (including correct answer) in hidden fields or rely on the AI to grade "User selected X vs Correct Y".
+    # BUT, passing correct answers to the client is insecure (though okay for a learning app prototype).
+    # Better approach: The form submits question text + selected option text.
+    
+    quiz_data_str = request.form.get('quiz_data_json') # Passed as hidden
+    if not quiz_data_str:
+        return "Error: Missing quiz data", 400
+        
+    import json
+    questions = json.loads(quiz_data_str)
+    
+    user_results = []
+    score = 0
+    total = len(questions)
+    
+    transcript = f"Quiz Assessment for {role_name}:\n\n"
+    
+    for q in questions:
+        qid = str(q['id'])
+        selected_option = request.form.get(f"q_{qid}")
+        correct_option = q['options'][q['correct_index']]
+        
+        is_correct = (selected_option == correct_option)
+        if is_correct: score += 1
+        
+        user_results.append({
+            'question': q['text'],
+            'selected': selected_option,
+            'correct': correct_option,
+            'is_correct': is_correct
+        })
+        
+        transcript += f"Q: {q['text']}\nUser Answer: {selected_option}\nCorrect Answer: {correct_option}\nResult: {'Correct' if is_correct else 'Incorrect'}\n\n"
+
+    # AI Analysis
+    analysis_prompt = (
+        f"Analyze this quiz performance for the role '{role_name}'.\n"
+        f"Score: {score}/{total}\n"
+        f"Transcript:\n{transcript}\n"
+        "Task:\n"
+        "1. Provide an 'Effectiveness Score' (0-100) and a short verdict (e.g. 'Ready for Junior Role').\n"
+        "2. Identify specific 'Weak Areas' based on incorrect answers.\n"
+        "3. Recommend 3 concrete 'Focus Areas' to study.\n"
+        "\n"
+        "Return JSON:\n"
+        "{\n"
+        "  \"effectiveness_score\": 85,\n"
+        "  \"verdict\": \"...\",\n"
+        "  \"weak_areas\": [\"...\", \"...\"],\n"
+        "  \"focus_recommendations\": [\"...\", \"...\"]\n"
+        "}"
+    )
+    
+    ai_resp = ask_llama("", analysis_prompt)
+    analysis = {}
+    try:
+        clean_resp = re.sub(r'```json\s*|\s*```', '', ai_resp).strip()
+        analysis = json.loads(clean_resp)
+    except:
+        analysis = {
+            "effectiveness_score": int((score/total)*100),
+            "verdict": "Completion based assessment.",
+            "weak_areas": [],
+            "focus_recommendations": []
+        }
+
+    return render_template('quiz_result.html', role_name=role_name, score=score, total=total, results=user_results, analysis=analysis)
+
+@app.route('/roadmap_quiz/<topic>')
+@login_required
+def roadmap_quiz(topic):
+    # Prompt AI to generate 5 questions for the specific topic
+    prompt = (
+        f"Create a technical skill assessment quiz for the topic: '{topic}'.\n"
+        "Generate 5 Multiple Choice Questions (MCQs) testing key concepts of this topic.\n"
+        "Format strictly as a JSON object with this structure:\n"
+        "{\n"
+        "  \"questions\": [\n"
+        "    {\n"
+        "      \"id\": 1,\n"
+        "      \"text\": \"Question text here?\",\n"
+        "      \"options\": [\"Option A\", \"Option B\", \"Option C\", \"Option D\"],\n"
+        "      \"correct_index\": 0\n"
+        "    }\n"
+        "  ]\n"
+        "}\n"
+        "No Markdown. Return only valid JSON. Do not use trailing commas."
+    )
+    
+    response_text = ask_llama("", prompt)
+    print(f"DEBUG: Quiz Gen Raw Response: {response_text}")
+    
+    questions = []
+    try:
+        # 1. Clean Markdown Code Blocks
+        clean_json = re.sub(r'```json\s*|\s*```', '', response_text).strip()
+        
+        # 2. Extract JSON Object (Find outer curly braces)
+        start_idx = clean_json.find('{')
+        end_idx = clean_json.rfind('}')
+        
+        if start_idx != -1 and end_idx != -1:
+            clean_json = clean_json[start_idx:end_idx+1]
+            try:
+                data = json.loads(clean_json)
+            except json.JSONDecodeError:
+                # Fallback: Try ast.literal_eval for loose JSON/Python dict syntax
+                import ast
+                print("DEBUG: json.loads failed, trying ast.literal_eval...")
+                data = ast.literal_eval(clean_json)
+                
+            questions = data.get('questions', [])
+        else:
+            print("Quiz Gen Error: No JSON object found.")
+            flash("AI response format error. Please try again.")
+            return redirect(url_for('roadmap'))
+            
+    except json.JSONDecodeError as jde:
+        print(f"Quiz Gen JSON Error: {jde}")
+        print(f"Failed JSON text: {clean_json}")
+        flash("Could not parse AI quiz. Please try again.")
+        return redirect(url_for('roadmap'))
+    except Exception as e:
+        print(f"Quiz Gen Error: {e}")
+        flash("Could not generate quiz. Please try again.")
+        return redirect(url_for('roadmap'))
+        
+    return render_template('quiz.html', role_name=topic, questions=questions, is_strict=True)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

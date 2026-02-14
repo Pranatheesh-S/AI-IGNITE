@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header animate-fade-in">
+    <h1 class="page-title">Skill Assessment: {{ role_name }}</h1>
+    <p style="color: var(--text-muted);">Answer these 10 questions to evaluate your readiness for this role.</p>
+</div>
+
+<div class="glass-card animate-fade-in" style="max-width: 800px; margin: 0 auto;">
+    <form action="{{ url_for('submit_quiz') }}" method="POST">
+        <input type="hidden" name="role_name" value="{{ role_name }}">
+        <!-- Pass full questions data back to server for grading context -->
+        <input type="hidden" name="quiz_data_json" value='{{ questions | tojson | safe }}'>
+
+        {% for q in questions %}
+        <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <p style="font-size: 1.1rem; color: #fff; margin-bottom: 1rem;">
+                <span style="color: var(--primary); font-weight: bold;">Q{{ loop.index }}.</span> {{ q.text }}
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                {% for option in q.options %}
+                <label
+                    style="display: flex; align-items: center; justify-content: center; text-align: center; gap: 0.8rem; cursor: pointer; background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; transition: all 0.2s; border: 2px solid transparent; height: 100%;">
+                    <input type="radio" name="q_{{ q.id }}" value="{{ option }}" required
+                        style="position: absolute; opacity: 0; pointer-events: none;">
+                    <span style="color: var(--text-muted); line-height: 1.4; font-size: 1rem;">{{ option }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div style="text-align: center;">
+            <button type="submit" class="btn btn-primary" style="padding: 1rem 3rem; font-size: 1.1rem;">
+                <i class="fa-solid fa-paper-plane"></i> Submit Assessment
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+    label:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+        transform: translateY(-2px);
+    }
+
+    /* Selected State Style */
+    label:has(input:checked) {
+        border-color: var(--primary) !important;
+        background: rgba(var(--primary-rgb), 0.1) !important;
+    }
+
+    label:has(input:checked) span {
+        color: #fff !important;
+        font-weight: 600;
+    }
+
+    /* Strict Mode Styles */
+    #start-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
+</style>
+
+{% if is_strict %}
+<div id="start-overlay" class="animate-fade-in">
+    <h1 style="font-size: 2.5rem; margin-bottom: 1rem; color: #fff;">Strict Mode Assessment</h1>
+    <p style="color: var(--text-muted); max-width: 600px; margin-bottom: 2rem; font-size: 1.1rem;">
+        This quiz requires fullscreen mode. Leaving fullscreen or switching tabs will
+        <span style="color: #ef4444; font-weight: bold;">terminate the attempt immediately</span>.
+    </p>
+    <button onclick="startStrictQuiz()" class="btn btn-primary" style="padding: 1rem 3rem; font-size: 1.2rem;">
+        <i class="fa-solid fa-expand"></i> Enter Fullscreen & Begin
+    </button>
+</div>
+
+<script>
+    let quizActive = false;
+    let submitted = false;
+
+    function startStrictQuiz() {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().then(() => {
+                document.getElementById('start-overlay').style.display = 'none';
+                quizActive = true;
+            }).catch(err => {
+                alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            alert("Fullscreen is not supported by your browser.");
+        }
+    }
+
+    // Detect Fullscreen Exit
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    function handleFullscreenChange() {
+        if (!document.fullscreenElement && !document.webkitIsFullScreen && !document.mozFullScreen && !document.msFullscreenElement) {
+            if (quizActive && !submitted) {
+                alert("Assessment Terminated: You exited fullscreen mode.");
+                window.location.href = "{{ url_for('roadmap') }}";
+            }
+        }
+    }
+
+    // Allow submission without triggering exit punishment
+    document.querySelector('form').addEventListener('submit', function () {
+        submitted = true;
+    });
+
+    // Prevent right click
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    // Prevent key combos (basic)
+    document.onkeydown = function (e) {
+        if (e.keyCode == 123) { return false; }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) { return false; }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) { return false; }
+        if (e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) { return false; }
+        if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) { return false; }
+    }
+</script>
+{% endif %}
+{% endblock %}
