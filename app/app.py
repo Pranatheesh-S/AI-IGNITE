@@ -126,18 +126,14 @@ def ask_llama(context_text, question):
 def fetch_github_data(username):
     """Fetch repos and their details from GitHub API."""
     try:
-        import os
-        headers = {}
-        if os.environ.get("GITHUB_TOKEN"):
-            headers["Authorization"] = f"token {os.environ.get('GITHUB_TOKEN')}"
-            
-        res = requests.get(f"{GITHUB_API_BASE}/users/{username}/repos", headers=headers, timeout=5)
+        res = requests.get(f"{GITHUB_API_BASE}/users/{username}/repos", timeout=5)
         if res.status_code != 200: return []
         
         repos = []
         for repo in res.json():
-            # Use the primary language provided by the repos endpoint to avoid multiple API calls
-            langs = [repo.get("language")] if repo.get("language") else []
+            # Get languages for each repo
+            lang_res = requests.get(repo["languages_url"], timeout=5)
+            langs = list(lang_res.json().keys()) if lang_res.status_code == 200 else []
             
             repos.append({
                 "name": repo["name"],
