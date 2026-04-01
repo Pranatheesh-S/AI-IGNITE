@@ -1964,4 +1964,5 @@ def roadmap_quiz(topic):
     return render_template('quiz.html', role_name=topic, questions=questions, is_strict=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
