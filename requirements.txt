@@ -8,3 +8,4 @@ torchvision
 opencv-python-headless
 firebase-admin
 werkzeug
+google-generativeai
