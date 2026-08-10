@@ -34,7 +34,7 @@
 - **AI & LLM**: Meta LLaMA 3 (via OpenRouter API), Google Gemini (integrated libraries)
 - **OCR**: EasyOCR (for text extraction from images/PDFs)
 - **Frontend**: HTML5, CSS3, JavaScript (Jinja2 Templates)
-- **Tools**: Git, Docker (optional)
+- **Tools**: Git
 
 ## 🚀 Getting Started
 
